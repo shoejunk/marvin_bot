@@ -1,0 +1,7 @@
+*.env
+__pycache__
+conversation_history.json
+/temp_tts.mp3
+# Spotify API cache
+.cache
+marvin.log
