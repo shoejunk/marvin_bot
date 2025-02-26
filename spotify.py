@@ -78,3 +78,93 @@ class SpotifyClient:
         except Exception as e:
             logging.error("Unexpected error: %s", str(e))
             return False
+            
+    def pause_music(self):
+        """Pause currently playing music"""
+        try:
+            device_id = self._get_active_device()
+            if not device_id:
+                logging.warning("No active device found")
+                return False
+                
+            self.sp.pause_playback(device_id=device_id)
+            logging.info("Music paused")
+            return True
+        except spotipy.exceptions.SpotifyException as e:
+            logging.error("Spotify API error: %s", str(e))
+            return False
+        except Exception as e:
+            logging.error("Unexpected error: %s", str(e))
+            return False
+            
+    def unpause_music(self):
+        """Resume playing paused music"""
+        try:
+            device_id = self._get_active_device()
+            if not device_id:
+                logging.warning("No active device found")
+                return False
+                
+            self.sp.start_playback(device_id=device_id)
+            logging.info("Music resumed")
+            return True
+        except spotipy.exceptions.SpotifyException as e:
+            logging.error("Spotify API error: %s", str(e))
+            return False
+        except Exception as e:
+            logging.error("Unexpected error: %s", str(e))
+            return False
+            
+    def volume_up(self, increment=10):
+        """Increase volume by the specified percentage"""
+        try:
+            device_id = self._get_active_device()
+            if not device_id:
+                logging.warning("No active device found")
+                return False
+                
+            # Get current playback state to check volume
+            current_playback = self.sp.current_playback()
+            if not current_playback or 'device' not in current_playback:
+                logging.warning("No active playback found")
+                return False
+                
+            current_volume = current_playback['device']['volume_percent']
+            new_volume = min(100, current_volume + increment)
+            
+            self.sp.volume(new_volume, device_id=device_id)
+            logging.info(f"Volume increased from {current_volume}% to {new_volume}%")
+            return True
+        except spotipy.exceptions.SpotifyException as e:
+            logging.error("Spotify API error: %s", str(e))
+            return False
+        except Exception as e:
+            logging.error("Unexpected error: %s", str(e))
+            return False
+            
+    def volume_down(self, decrement=10):
+        """Decrease volume by the specified percentage"""
+        try:
+            device_id = self._get_active_device()
+            if not device_id:
+                logging.warning("No active device found")
+                return False
+                
+            # Get current playback state to check volume
+            current_playback = self.sp.current_playback()
+            if not current_playback or 'device' not in current_playback:
+                logging.warning("No active playback found")
+                return False
+                
+            current_volume = current_playback['device']['volume_percent']
+            new_volume = max(0, current_volume - decrement)
+            
+            self.sp.volume(new_volume, device_id=device_id)
+            logging.info(f"Volume decreased from {current_volume}% to {new_volume}%")
+            return True
+        except spotipy.exceptions.SpotifyException as e:
+            logging.error("Spotify API error: %s", str(e))
+            return False
+        except Exception as e:
+            logging.error("Unexpected error: %s", str(e))
+            return False

@@ -98,6 +98,28 @@ async def async_main():
                     playlist_name = normalized_action.split(':', 1)[1].strip() if ':' in normalized_action else ''
                     if playlist_name:
                         spotify_client.play_playlist(playlist_name)
+                elif normalized_action.startswith("pause_music"):
+                    spotify_client.pause_music()
+                elif normalized_action.startswith("unpause_music"):
+                    spotify_client.unpause_music()
+                elif normalized_action.startswith("volume_up"):
+                    # Check if there's a specified increment value
+                    increment = 10  # Default increment value
+                    if ':' in normalized_action:
+                        try:
+                            increment = int(normalized_action.split(':', 1)[1].strip())
+                        except ValueError:
+                            pass
+                    spotify_client.volume_up(increment)
+                elif normalized_action.startswith("volume_down"):
+                    # Check if there's a specified decrement value
+                    decrement = 10  # Default decrement value
+                    if ':' in normalized_action:
+                        try:
+                            decrement = int(normalized_action.split(':', 1)[1].strip())
+                        except ValueError:
+                            pass
+                    spotify_client.volume_down(decrement)
                 elif normalized_action.startswith("reboot"):
                     await speak_text("Marvin rebooting")
                     logging.info("Rebooting Marvin...")

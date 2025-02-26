@@ -28,6 +28,8 @@ system_prompt = (
     "the list, inform the user that you can't do it. If it is on the list, respond in English, "
     "then add xml tags <action>xxx</action>, where xxx is the action to be "
     "performed. For music playback, use the format <action>play_song:song_name</action>. "
+    "For volume control, use <action>volume_up</action> or <action>volume_down</action>, or "
+    "optionally specify an amount like <action>volume_up:20</action> to adjust by a specific percentage. "
     "Be sure to indicate that you have done the task even if begrudgingly..."
     "The valid actions are: ["+ ', '.join(action_strings) + "]. If an action needs parameters, use a format such as "
     "<action>play_song:song_name</action> or <action>play_playlist:playlist_name</action>"
