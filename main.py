@@ -102,8 +102,9 @@ async def async_main():
                     spotify_client.pause_music()
                 elif normalized_action.startswith("unpause_music"):
                     spotify_client.unpause_music()
-                elif normalized_action.startswith("volume_up"):
-                    # Check if there's a specified increment value
+                elif normalized_action.startswith("stop_music"):
+                    spotify_client.stop_music()
+                elif normalized_action.startswith("volume_up"):                    # Check if there's a specified increment value
                     increment = 10  # Default increment value
                     if ':' in normalized_action:
                         try:
@@ -238,7 +239,7 @@ def create_system_tray():
     )
     icon = pystray.Icon('Marvin', image, 'Marvin Voice Assistant', menu)
     icon.run()
-    
+
 # Start the system tray in a separate thread
 tray_thread = threading.Thread(target=create_system_tray)
 tray_thread.daemon = True

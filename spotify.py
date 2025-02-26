@@ -115,6 +115,29 @@ class SpotifyClient:
             logging.error("Unexpected error: %s", str(e))
             return False
             
+    def stop_music(self):
+        """Completely stop music playback"""
+        try:
+            device_id = self._get_active_device()
+            if not device_id:
+                logging.warning("No active device found")
+                return False
+                
+            # First pause playback
+            self.sp.pause_playback(device_id=device_id)
+            
+            # Then seek to position 0 (beginning of track)
+            self.sp.seek_track(position_ms=0, device_id=device_id)
+            
+            logging.info("Music stopped")
+            return True
+        except spotipy.exceptions.SpotifyException as e:
+            logging.error("Spotify API error: %s", str(e))
+            return False
+        except Exception as e:
+            logging.error("Unexpected error: %s", str(e))
+            return False
+            
     def volume_up(self, increment=10):
         """Increase volume by the specified percentage"""
         try:
