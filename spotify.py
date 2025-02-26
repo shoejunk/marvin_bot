@@ -33,7 +33,9 @@ class SpotifyClient:
         if not device_id:
             return False
 
-        results = self.sp.search(q=track_name, limit=1, type='track')
+        # Clean up track name by replacing underscores with spaces
+        clean_track_name = track_name.replace('_', ' ')
+        results = self.sp.search(q=clean_track_name, limit=1, type='track')
         if results.get('tracks') and results['tracks'].get('items') and len(results['tracks']['items']) > 0:
             track_uri = results['tracks']['items'][0]['uri']
             self.sp.start_playback(device_id=device_id, uris=[track_uri])
@@ -47,7 +49,9 @@ class SpotifyClient:
                 logging.warning("No active device found")
                 return False
 
-            logging.info("Looking for playlist: '%s'", playlist_name)
+            # Clean up playlist name by replacing underscores with spaces
+            clean_playlist_name = playlist_name.replace('_', ' ')
+            logging.info("Looking for playlist: '%s'", clean_playlist_name)
 
             # Search with increased limit
             offset = 0
@@ -58,15 +62,13 @@ class SpotifyClient:
 
                 for playlist in playlists['items']:
                     logging.info("- %s (ID: %s)", playlist['name'], playlist['id'])
-                    if playlist['name'].lower() == playlist_name.lower():
+                    if playlist['name'].lower() == clean_playlist_name.lower():
                         logging.info("Found matching playlist: %s", playlist['name'])
                         self.sp.start_playback(device_id=device_id, context_uri=playlist['uri'])
                         return True
 
                 if len(playlists['items']) < limit:
                     break
-
-                offset += limit
 
             logging.info("No playlist named '%s' found in your library", playlist_name)
             return False
