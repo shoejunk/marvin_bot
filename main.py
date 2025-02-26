@@ -224,14 +224,21 @@ def stop_assistant():
 # Function to create system tray icon
 def create_system_tray():
     image = Image.open('icon.png')
+    
+    def on_exit(icon):
+        logging.info('Exiting Marvin from system tray...')
+        stop_assistant()
+        icon.stop()
+        os._exit(0)  # Force terminate the process
+    
     menu = (
         pystray.MenuItem('Start', lambda: start_assistant()),
         pystray.MenuItem('Stop', lambda: stop_assistant()),
-        pystray.MenuItem('Exit', lambda: icon.stop())
+        pystray.MenuItem('Exit', on_exit)
     )
     icon = pystray.Icon('Marvin', image, 'Marvin Voice Assistant', menu)
     icon.run()
-
+    
 # Start the system tray in a separate thread
 tray_thread = threading.Thread(target=create_system_tray)
 tray_thread.daemon = True
