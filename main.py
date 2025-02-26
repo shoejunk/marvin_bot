@@ -2,7 +2,7 @@
 """
 main.py - Main entry point for the voice assistant.
 Processes voice input, obtains AI responses, strips out <action> tags before speaking,
-and triggers actions (e.g., turning lights on/off) via the MerossController.
+and triggers actions (e.g., turning lights on/off) via the MerossController and file operations.
 """
 
 import os
@@ -19,11 +19,13 @@ from meross_control import MerossController
 from actions import action_strings  # Import shared valid actions list
 from conversation_history import update_history
 from spotify import SpotifyClient
+from file_operations import FileOperations  # Import the new FileOperations class
 from datetime import timedelta
 import pystray
 from PIL import Image
 import threading
 import logging
+import json
 
 # Add global timer control variable
 timer_active = False
@@ -35,6 +37,11 @@ async def async_main():
     logging.debug("Initializing Meross Controller...")
     meross_controller = await MerossController.init()
     spotify_client = SpotifyClient()
+    
+    # Initialize the file operations manager
+    file_ops = FileOperations()
+    logging.debug("File operations initialized with artifacts directory: %s", file_ops.artifacts_dir)
+    
     await speak_text("Marvin online")
     
     while True:
@@ -84,61 +91,200 @@ async def async_main():
         action_tags = re.findall(r'<action>(.*?)</action>', reply, flags=re.IGNORECASE)
         for action in action_tags:
             normalized_action = action.lower().replace(" ", "_")
-            if any(normalized_action.startswith(action) for action in action_strings):
-                logging.info(f"Detected action: {normalized_action}")
-                if normalized_action.startswith("turn_on_light"):
-                    await meross_controller.turn_on_light()
-                elif normalized_action.startswith("turn_off_light"):
-                    await meross_controller.turn_off_light()
-                elif normalized_action.startswith("play_song"):
-                    song_name = normalized_action.split(':', 1)[1].strip() if ':' in normalized_action else ''
-                    if song_name:
-                        spotify_client.play_track(song_name)
-                elif normalized_action.startswith("play_playlist"):
-                    playlist_name = normalized_action.split(':', 1)[1].strip() if ':' in normalized_action else ''
-                    if playlist_name:
-                        spotify_client.play_playlist(playlist_name)
-                elif normalized_action.startswith("pause_music"):
-                    spotify_client.pause_music()
-                elif normalized_action.startswith("unpause_music"):
-                    spotify_client.unpause_music()
-                elif normalized_action.startswith("stop_music"):
-                    spotify_client.stop_music()
-                elif normalized_action.startswith("volume_up"):                    # Check if there's a specified increment value
-                    increment = 10  # Default increment value
-                    if ':' in normalized_action:
-                        try:
-                            increment = int(normalized_action.split(':', 1)[1].strip())
-                        except ValueError:
-                            pass
-                    spotify_client.volume_up(increment)
-                elif normalized_action.startswith("volume_down"):
-                    # Check if there's a specified decrement value
-                    decrement = 10  # Default decrement value
-                    if ':' in normalized_action:
-                        try:
-                            decrement = int(normalized_action.split(':', 1)[1].strip())
-                        except ValueError:
-                            pass
-                    spotify_client.volume_down(decrement)
-                elif normalized_action.startswith("reboot"):
-                    await speak_text("Marvin rebooting")
-                    logging.info("Rebooting Marvin...")
-                    bat_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "run_marvin.bat"))
-                    logging.info(f"Running batch file: {bat_path}")
-                    subprocess.Popen([bat_path], shell=True, creationflags=subprocess.CREATE_NEW_CONSOLE)
-                    os._exit(0)
-                elif normalized_action.startswith('set_timer'):
-                    duration = normalized_action.split(':', 1)[1].strip() if ':' in normalized_action else ''
-                    if duration:
-                        asyncio.create_task(set_timer(duration))
-                elif normalized_action.startswith('stop_timer'):
-                    await stop_timer()
-                elif normalized_action.startswith('shut_down'):
-                    await speak_text('Shutting down Marvin')
-                    logging.info('Shutting down Marvin...')
-                    stop_assistant()
-                    os._exit(0)
+            
+            # Extract parameters if they exist (format: action_name:param1,param2)
+            params = []
+            if ':' in normalized_action:
+                action_parts = normalized_action.split(':', 1)
+                action_name = action_parts[0]
+                params_text = action_parts[1]
+                
+                # Handle comma-separated parameters
+                if ',' in params_text:
+                    params = [param.strip() for param in params_text.split(',')]
+                else:
+                    params = [params_text.strip()]
+            else:
+                action_name = normalized_action
+            
+            # Log the action
+            if params:
+                logging.info(f"Detected action: {action_name} with params: {params}")
+            else:
+                logging.info(f"Detected action: {action_name}")
+            
+            # Handle existing actions
+            if action_name.startswith("turn_on_light"):
+                await meross_controller.turn_on_light()
+            elif action_name.startswith("turn_off_light"):
+                await meross_controller.turn_off_light()
+            elif action_name.startswith("play_song"):
+                song_name = params[0] if params else ''
+                if song_name:
+                    spotify_client.play_track(song_name)
+            elif action_name.startswith("play_playlist"):
+                playlist_name = params[0] if params else ''
+                if playlist_name:
+                    spotify_client.play_playlist(playlist_name)
+            elif action_name.startswith("pause_music"):
+                spotify_client.pause_music()
+            elif action_name.startswith("unpause_music"):
+                spotify_client.unpause_music()
+            elif action_name.startswith("stop_music"):
+                spotify_client.stop_music()
+            elif action_name.startswith("volume_up"):
+                increment = int(params[0]) if params and params[0].isdigit() else 10
+                spotify_client.volume_up(increment)
+            elif action_name.startswith("volume_down"):
+                decrement = int(params[0]) if params and params[0].isdigit() else 10
+                spotify_client.volume_down(decrement)
+            elif action_name.startswith("reboot"):
+                await speak_text("Marvin rebooting")
+                logging.info("Rebooting Marvin...")
+                bat_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "run_marvin.bat"))
+                logging.info(f"Running batch file: {bat_path}")
+                subprocess.Popen([bat_path], shell=True, creationflags=subprocess.CREATE_NEW_CONSOLE)
+                os._exit(0)
+            elif action_name.startswith('set_timer'):
+                duration = params[0] if params else ''
+                if duration:
+                    asyncio.create_task(set_timer(duration))
+            elif action_name.startswith('stop_timer'):
+                await stop_timer()
+            elif action_name.startswith('shut_down'):
+                await speak_text('Shutting down Marvin')
+                logging.info('Shutting down Marvin...')
+                stop_assistant()
+                os._exit(0)
+                
+            # New file operation actions
+            elif action_name.startswith('read_file'):
+                filename = params[0] if params else None
+                if filename:
+                    content = file_ops.read_file(filename)
+                    if content is not None:
+                        # Create a temporary file with the content to be read back
+                        temp_file = os.path.join(file_ops.artifacts_dir, "_temp_read.txt")
+                        with open(temp_file, 'w', encoding='utf-8') as f:
+                            f.write(f"Content of file {filename}:\n{content}")
+                        # Read the content out loud with a limit
+                        preview = content[:300] + "..." if len(content) > 300 else content
+                        await speak_text(f"Content of file {filename}: {preview}")
+                    else:
+                        await speak_text(f"Could not read file {filename}")
+                else:
+                    await speak_text("No filename specified for reading")
+                    
+            elif action_name.startswith('write_file'):
+                if len(params) >= 2:
+                    filename = params[0]
+                    content = params[1]
+                    overwrite = True if len(params) <= 2 or params[2].lower() == 'true' else False
+                    success = file_ops.write_file(filename, content, overwrite)
+                    if success:
+                        await speak_text(f"Successfully wrote to file {filename}")
+                    else:
+                        await speak_text(f"Failed to write to file {filename}")
+                else:
+                    await speak_text("Insufficient parameters for writing a file")
+                    
+            elif action_name.startswith('list_files'):
+                subdirectory = params[0] if params else ""
+                files = file_ops.list_files(subdirectory)
+                if files:
+                    file_list = ", ".join(files[:10])
+                    if len(files) > 10:
+                        file_list += f", and {len(files) - 10} more files"
+                    await speak_text(f"Found {len(files)} files: {file_list}")
+                else:
+                    await speak_text(f"No files found in {'artifacts' if not subdirectory else subdirectory}")
+                    
+            elif action_name.startswith('delete_file'):
+                filename = params[0] if params else None
+                if filename:
+                    success = file_ops.delete_file(filename)
+                    if success:
+                        await speak_text(f"Successfully deleted file {filename}")
+                    else:
+                        await speak_text(f"Failed to delete file {filename}")
+                else:
+                    await speak_text("No filename specified for deletion")
+                    
+            elif action_name.startswith('edit_file'):
+                if len(params) >= 3:
+                    filename = params[0]
+                    find_text = params[1]
+                    replace_text = params[2]
+                    success = file_ops.edit_file(filename, find_text, replace_text)
+                    if success:
+                        await speak_text(f"Successfully edited file {filename}")
+                    else:
+                        await speak_text(f"Failed to edit file {filename}")
+                else:
+                    await speak_text("Insufficient parameters for editing a file")
+                    
+            elif action_name.startswith('append_to_file'):
+                if len(params) >= 2:
+                    filename = params[0]
+                    content = params[1]
+                    create_if_missing = True if len(params) <= 2 or params[2].lower() == 'true' else False
+                    success = file_ops.append_to_file(filename, content, create_if_missing)
+                    if success:
+                        await speak_text(f"Successfully appended to file {filename}")
+                    else:
+                        await speak_text(f"Failed to append to file {filename}")
+                else:
+                    await speak_text("Insufficient parameters for appending to a file")
+                    
+            elif action_name.startswith('create_directory'):
+                directory = params[0] if params else None
+                if directory:
+                    success = file_ops.create_directory(directory)
+                    if success:
+                        await speak_text(f"Successfully created directory {directory}")
+                    else:
+                        await speak_text(f"Failed to create directory {directory}")
+                else:
+                    await speak_text("No directory name specified for creation")
+                    
+            elif action_name.startswith('move_file'):
+                if len(params) >= 2:
+                    source = params[0]
+                    destination = params[1]
+                    success = file_ops.move_file(source, destination)
+                    if success:
+                        await speak_text(f"Successfully moved file from {source} to {destination}")
+                    else:
+                        await speak_text(f"Failed to move file")
+                else:
+                    await speak_text("Insufficient parameters for moving a file")
+                    
+            elif action_name.startswith('copy_file'):
+                if len(params) >= 2:
+                    source = params[0]
+                    destination = params[1]
+                    success = file_ops.copy_file(source, destination)
+                    if success:
+                        await speak_text(f"Successfully copied file from {source} to {destination}")
+                    else:
+                        await speak_text(f"Failed to copy file")
+                else:
+                    await speak_text("Insufficient parameters for copying a file")
+                    
+            elif action_name.startswith('search_files'):
+                if params:
+                    search_text = params[0]
+                    subdirectory = params[1] if len(params) > 1 else ""
+                    matching_files = file_ops.search_files(search_text, subdirectory)
+                    if matching_files:
+                        file_list = ", ".join(matching_files[:5])
+                        if len(matching_files) > 5:
+                            file_list += f", and {len(matching_files) - 5} more"
+                        await speak_text(f"Found {len(matching_files)} files containing '{search_text}': {file_list}")
+                    else:
+                        await speak_text(f"No files containing '{search_text}' found")
+                else:
+                    await speak_text("No search text specified")
             else:
                 logging.warning(f"Action '{normalized_action}' not recognized in the action list.")
 

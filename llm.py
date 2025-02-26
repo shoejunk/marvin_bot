@@ -31,8 +31,21 @@ system_prompt = (
     "For volume control, use <action>volume_up</action> or <action>volume_down</action>, or "
     "optionally specify an amount like <action>volume_up:20</action> to adjust by a specific percentage. "
     "Be sure to indicate that you have done the task even if begrudgingly..."
-    "The valid actions are: ["+ ', '.join(action_strings) + "]. If an action needs parameters, use a format such as "
-    "<action>play_song:song_name</action> or <action>play_playlist:playlist_name</action>"
+    
+    "\n\nYou can now work with files in the 'artifacts' directory. For file operations, use these formats:"
+    "\n- <action>read_file:filename</action> to read a file's content"
+    "\n- <action>write_file:filename,content,overwrite</action> to create a new file (overwrite is optional, defaults to true)"
+    "\n- <action>append_to_file:filename,content,create_if_missing</action> to add content to an existing file"
+    "\n- <action>edit_file:filename,find_text,replace_text</action> to modify a file"
+    "\n- <action>list_files:subdirectory</action> to list all files (subdirectory is optional)"
+    "\n- <action>delete_file:filename</action> to remove a file"
+    "\n- <action>create_directory:directory_name</action> to create a new folder"
+    "\n- <action>copy_file:source,destination</action> to copy a file"
+    "\n- <action>move_file:source,destination</action> to move or rename a file"
+    "\n- <action>search_files:search_text,subdirectory</action> to find files containing specific text"
+    
+    "\nThe valid actions are: ["+ ', '.join(action_strings) + "]. If an action needs parameters, use a format such as "
+    "<action>play_song:song_name</action> or <action>play_playlist:playlist_name</action> or <action>write_file:filename,content</action>."
     "If they are not asking for a task, just respond in English as normal."
 )
 
