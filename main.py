@@ -123,8 +123,9 @@ async def async_main():
                 elif normalized_action.startswith("reboot"):
                     await speak_text("Marvin rebooting")
                     logging.info("Rebooting Marvin...")
-                    bat_path = os.path.join(os.path.dirname(__file__), "run_marvin.bat")
-                    subprocess.Popen([bat_path])
+                    bat_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "run_marvin.bat"))
+                    logging.info(f"Running batch file: {bat_path}")
+                    subprocess.Popen([bat_path], shell=True, creationflags=subprocess.CREATE_NEW_CONSOLE)
                     os._exit(0)
                 elif normalized_action.startswith('set_timer'):
                     duration = normalized_action.split(':', 1)[1].strip() if ':' in normalized_action else ''
