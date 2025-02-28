@@ -145,7 +145,7 @@ async def async_main():
                 logging.info(f"Running batch file: {bat_path}")
                 subprocess.Popen([bat_path], shell=True, creationflags=subprocess.CREATE_NEW_CONSOLE)
                 os._exit(0)
-            elif action_name.startswith('set_timer'):
+            elif action_name.startswith('set_timer') or action_name.startswith('start_timer'):
                 duration = params[0] if params else ''
                 if duration:
                     asyncio.create_task(set_timer(duration))
