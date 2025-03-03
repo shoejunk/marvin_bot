@@ -1,1 +1,1 @@
-Make a display to show the conversation, actions run, and times running.
+Make a display to show the conversation, actions run, and time left on timers running.
