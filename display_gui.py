@@ -17,9 +17,14 @@ class DisplayGUI:
         self.main_frame = ttk.Frame(self.root)
         self.main_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
         
-        # Create conversation frame (top section)
+        # Configure row weights to achieve 3/4 to 1/4 ratio
+        self.main_frame.grid_rowconfigure(0, weight=3)  # 3/4 for conversation
+        self.main_frame.grid_rowconfigure(1, weight=1)  # 1/4 for timers
+        self.main_frame.grid_columnconfigure(0, weight=1)
+        
+        # Create conversation frame (top section - 3/4 of the space)
         self.conversation_frame = ttk.LabelFrame(self.main_frame, text='Conversation History')
-        self.conversation_frame.pack(fill=tk.BOTH, expand=True, pady=(0, 5))
+        self.conversation_frame.grid(row=0, column=0, sticky='nsew', padx=5, pady=5)
         
         # Create conversation text area with scrollbar
         self.conversation_text = tk.Text(self.conversation_frame, wrap=tk.WORD)
@@ -28,12 +33,12 @@ class DisplayGUI:
         self.conversation_text.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         self.conversation_scroll.pack(side=tk.RIGHT, fill=tk.Y)
         
-        # Create timers frame (bottom section)
+        # Create timers frame (bottom section - 1/4 of the space)
         self.timers_frame = ttk.LabelFrame(self.main_frame, text='Active Timers')
-        self.timers_frame.pack(fill=tk.X, expand=False, pady=(5, 0), ipady=50)
+        self.timers_frame.grid(row=1, column=0, sticky='nsew', padx=5, pady=5)
         
-        # Create timers tree
-        self.timers_tree = ttk.Treeview(self.timers_frame, columns=('time_left'), show='headings', height=3)
+        # Create timers tree with only time column
+        self.timers_tree = ttk.Treeview(self.timers_frame, columns=('time_left'), show='headings', height=5)
         self.timers_tree.heading('time_left', text='Time Remaining')
         self.timers_tree.column('time_left', width=150)
         self.timers_scroll = ttk.Scrollbar(self.timers_frame, command=self.timers_tree.yview)
