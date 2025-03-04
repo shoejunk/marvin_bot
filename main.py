@@ -41,6 +41,10 @@ display = Display()
 # Add global timer control variable
 timer_active = False
 
+def get_time():
+    import datetime
+    return datetime.datetime.now().strftime('%H:%M')
+
 async def async_main():
     logging.debug("System prompt: %s", system_prompt)
     logging.debug("Initializing Meross Controller...")
@@ -303,6 +307,8 @@ async def async_main():
                         await speak_text(f"No files containing '{search_text}' found")
                 else:
                     await speak_text("No search text specified")
+            elif action_name.startswith('get_time'):
+                await speak_text(get_time())
             else:
                 logging.warning(f"Action '{normalized_action}' not recognized in the action list.")
                 display.add_conversation(f"Unknown action: {action_name}")

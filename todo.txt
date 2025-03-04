@@ -1,2 +1,2 @@
-- Make a display to show the conversation, actions run, and time left on timers running.
-- Add an action to query the system time when asked and say it.
+- When there are multiple timers active at the same time, only the first one shows up in the Time Remaining section of the display.
+- Add the ability to open the display from the app's system tray icon.
