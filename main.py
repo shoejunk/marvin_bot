@@ -90,8 +90,11 @@ async def async_main():
         reply = await asyncio.to_thread(get_ai_response, user_input)
 
         # Update conversation history with the current turn.
-        display.add_conversation(user_input)
-        display.add_conversation(reply)
+        display.add_conversation(user_input, speaker='user')
+        
+        # Strip out action tags for display
+        display_reply = re.sub(r'<action>.*?</action>', '', reply, flags=re.IGNORECASE)
+        display.add_conversation(display_reply, speaker='marvin')
 
         # Remove any <action> tags from the text before speaking.
         text_to_speak = re.sub(r'<action>.*?</action>', '', reply, flags=re.IGNORECASE)
@@ -120,8 +123,10 @@ async def async_main():
             # Log the action
             if params:
                 logging.info(f"Detected action: {action_name} with params: {params}")
+                display.add_conversation(f"Action: {action_name} with params: {params}")
             else:
                 logging.info(f"Detected action: {action_name}")
+                display.add_conversation(f"Action: {action_name}")
             
             # Handle existing actions
             if action_name.startswith("turn_on_light"):
@@ -158,6 +163,9 @@ async def async_main():
             elif action_name.startswith('set_timer') or action_name.startswith('start_timer'):
                 duration = params[0] if params else ''
                 if duration:
+                    # Replace underscores with spaces if present
+                    duration = duration.replace('_', ' ')
+                    logging.info(f"Setting timer with cleaned duration: '{duration}'")
                     asyncio.create_task(set_timer(duration))
             elif action_name.startswith('stop_timer'):
                 await stop_timer()
@@ -297,7 +305,7 @@ async def async_main():
                     await speak_text("No search text specified")
             else:
                 logging.warning(f"Action '{normalized_action}' not recognized in the action list.")
-                display.add_action(f"Unknown action: {action_name}")
+                display.add_conversation(f"Unknown action: {action_name}")
 
         if text_to_speak:
             logging.info(f"Marvin says: {text_to_speak}")
@@ -313,68 +321,87 @@ async def set_timer(duration: str):
         
         # First, check if the duration is already in the format "X unit"
         duration_parts = duration.split()
+        logging.debug(f"Duration parts: {duration_parts}")
         
         if len(duration_parts) == 2:
             # Format is already "X unit"
-            value = int(duration_parts[0])
-            unit = duration_parts[1].lower()
+            try:
+                value = int(duration_parts[0])
+                unit_input = duration_parts[1].lower()
+                logging.debug(f"Parsed as two parts: value={value}, unit={unit_input}")
+            except ValueError as e:
+                logging.error(f"Error parsing value: {e}")
+                await speak_text('Invalid timer format. The value must be a number.')
+                return
         else:
             # Try to parse the duration as a single value
             # Check if it's just a number (assume seconds)
             try:
                 value = int(duration)
-                unit = 'seconds'
-                logging.debug(f"Parsed duration as {value} {unit}")
+                unit_input = 'seconds'
+                logging.debug(f"Parsed as single number: {value} {unit_input}")
             except ValueError:
                 # Try to extract number and unit from a string without spaces
                 import re
                 match = re.match(r'(\d+)(\w+)', duration)
                 if match:
-                    value = int(match.group(1))
-                    unit_abbr = match.group(2).lower()
-                    
-                    # Map abbreviations to full unit names
-                    unit_map = {
-                        's': 'seconds', 'sec': 'seconds', 'second': 'seconds', 'seconds': 'seconds',
-                        'm': 'minutes', 'min': 'minutes', 'minute': 'minutes', 'minutes': 'minutes',
-                        'h': 'hours', 'hr': 'hours', 'hour': 'hours', 'hours': 'hours'
-                    }
-                    
-                    if unit_abbr in unit_map:
-                        unit = unit_map[unit_abbr]
-                        logging.debug(f"Mapped '{unit_abbr}' to '{unit}'")
-                    else:
-                        unit = 'unknown'
+                    try:
+                        value = int(match.group(1))
+                        unit_abbr = match.group(2).lower()
+                        unit_input = unit_abbr
+                        logging.debug(f"Parsed with regex: value={value}, unit={unit_input}")
+                    except ValueError as e:
+                        logging.error(f"Error parsing regex match: {e}")
+                        await speak_text('Invalid timer format. Use format like "5 minutes" or "5m".')
+                        return
                 else:
+                    logging.error(f"Could not parse timer format: '{duration}'")
                     await speak_text('Invalid timer format. Use format like "5 minutes" or "5m".')
                     return
         
-        # Normalize unit to singular form for comparison
-        if unit.endswith('s') and len(unit) > 1:
-            unit_singular = unit[:-1]
+        # Map any unit format to a standardized format
+        unit_map = {
+            's': 'second', 'sec': 'second', 'second': 'second', 'seconds': 'second',
+            'm': 'minute', 'min': 'minute', 'minute': 'minute', 'minutes': 'minute',
+            'h': 'hour', 'hr': 'hour', 'hour': 'hour', 'hours': 'hour'
+        }
+        
+        # Try to map the input unit to a standard unit
+        if unit_input in unit_map:
+            unit = unit_map[unit_input]
+            logging.debug(f"Mapped '{unit_input}' to '{unit}'")
         else:
-            unit_singular = unit
+            logging.error(f"Unknown time unit: '{unit_input}'")
+            await speak_text(f'Invalid time unit: "{unit_input}". Use seconds, minutes, or hours.')
+            return
             
-        # Check if unit is valid
+        # Check if unit is valid (should always be valid after mapping)
         valid_units = ['second', 'minute', 'hour']
-        if unit_singular in valid_units:
+        if unit in valid_units:
             # Convert to seconds
-            if unit_singular == 'minute':
-                value *= 60
-            elif unit_singular == 'hour':
-                value *= 3600
+            if unit == 'minute':
+                seconds_value = value * 60
+            elif unit == 'hour':
+                seconds_value = value * 3600
+            else:  # seconds
+                seconds_value = value
                 
-            display.add_timer('main_timer', timedelta(seconds=value))
+            # For display purposes, use the original format
+            display_unit = unit + ('s' if value != 1 else '')
+            
+            logging.debug(f"Setting timer for {value} {display_unit} ({seconds_value} seconds)")
+            display.add_timer('main_timer', timedelta(seconds=seconds_value))
             timer_active = True
-            await speak_text(f'Timer set for {value} {unit}')
-            await asyncio.sleep(value)
+            await asyncio.sleep(seconds_value)
             timer_active = False
             display.remove_timer('main_timer')
             await speak_text('Timer complete!')
         else:
+            # This should never happen with our mapping
+            logging.error(f"Unexpected error: Unit '{unit}' not in valid_units after mapping")
             await speak_text('Invalid time unit. Use seconds, minutes, or hours.')
     except Exception as e:
-        logging.error(f'Error setting timer: {e}')
+        logging.error(f'Error setting timer: {e}', exc_info=True)
         await speak_text('Error setting timer.')
 
 async def stop_timer():
