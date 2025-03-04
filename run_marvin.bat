@@ -1,1 +1,1 @@
-start /B pythonw c:\dev\marvin_bot\main.py > c:\dev\marvin_bot\marvin.log 2>&1
+python c:\dev\marvin_bot\main.py > c:\dev\marvin_bot\marvin.log 2>&1

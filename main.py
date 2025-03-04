@@ -26,11 +26,20 @@ from PIL import Image
 import threading
 import logging
 import json
+from display import Display
+
+# Adding more detailed logging configuration
+logging.basicConfig(level=logging.DEBUG, 
+                   format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+                   handlers=[
+                       logging.FileHandler("marvin_debug.log"),
+                       logging.StreamHandler()
+                   ])
+
+display = Display()
 
 # Add global timer control variable
 timer_active = False
-
-logging.basicConfig(level=logging.DEBUG)
 
 async def async_main():
     logging.debug("System prompt: %s", system_prompt)
@@ -81,7 +90,8 @@ async def async_main():
         reply = await asyncio.to_thread(get_ai_response, user_input)
 
         # Update conversation history with the current turn.
-        update_history(user_input, reply)
+        display.add_conversation(user_input)
+        display.add_conversation(reply)
 
         # Remove any <action> tags from the text before speaking.
         text_to_speak = re.sub(r'<action>.*?</action>', '', reply, flags=re.IGNORECASE)
@@ -287,52 +297,90 @@ async def async_main():
                     await speak_text("No search text specified")
             else:
                 logging.warning(f"Action '{normalized_action}' not recognized in the action list.")
+                display.add_action(f"Unknown action: {action_name}")
 
         if text_to_speak:
             logging.info(f"Marvin says: {text_to_speak}")
             await speak_text(text_to_speak)
 
+        # No need to explicitly call display.show() here as the window should already be visible
+        # display.show()
+
 async def set_timer(duration: str):
     global timer_active
     try:
-        # Normalize duration string (replace underscores with spaces)
-        duration = duration.replace('_', ' ')
-
-        # Parse duration string
-        time_parts = {'h': 0, 'm': 0, 's': 0}
-        parts = duration.split()
-        for i in range(0, len(parts), 2):
-            if i+1 >= len(parts):
-                break
-            value = int(parts[i])
-            unit = parts[i+1][0].lower()
-            if unit == 'h':
-                time_parts['h'] = value
-            elif unit == 'm':
-                time_parts['m'] = value
-            elif unit == 's':
-                time_parts['s'] = value
-
-        total_seconds = time_parts['h'] * 3600 + time_parts['m'] * 60 + time_parts['s']
-        logging.info(f'Timer set for {total_seconds} seconds')
-        await asyncio.sleep(total_seconds)
-
-        # Initialize pygame mixer and play waiting sound on loop
-        import pygame
-        pygame.mixer.init()
-        pygame.mixer.music.load('waiting_sound.mp3')
-        pygame.mixer.music.play(-1)  # -1 means loop indefinitely
-        timer_active = True
-        logging.info('Playing waiting sound on loop')
+        logging.debug(f"Setting timer with duration: '{duration}'")
+        
+        # First, check if the duration is already in the format "X unit"
+        duration_parts = duration.split()
+        
+        if len(duration_parts) == 2:
+            # Format is already "X unit"
+            value = int(duration_parts[0])
+            unit = duration_parts[1].lower()
+        else:
+            # Try to parse the duration as a single value
+            # Check if it's just a number (assume seconds)
+            try:
+                value = int(duration)
+                unit = 'seconds'
+                logging.debug(f"Parsed duration as {value} {unit}")
+            except ValueError:
+                # Try to extract number and unit from a string without spaces
+                import re
+                match = re.match(r'(\d+)(\w+)', duration)
+                if match:
+                    value = int(match.group(1))
+                    unit_abbr = match.group(2).lower()
+                    
+                    # Map abbreviations to full unit names
+                    unit_map = {
+                        's': 'seconds', 'sec': 'seconds', 'second': 'seconds', 'seconds': 'seconds',
+                        'm': 'minutes', 'min': 'minutes', 'minute': 'minutes', 'minutes': 'minutes',
+                        'h': 'hours', 'hr': 'hours', 'hour': 'hours', 'hours': 'hours'
+                    }
+                    
+                    if unit_abbr in unit_map:
+                        unit = unit_map[unit_abbr]
+                        logging.debug(f"Mapped '{unit_abbr}' to '{unit}'")
+                    else:
+                        unit = 'unknown'
+                else:
+                    await speak_text('Invalid timer format. Use format like "5 minutes" or "5m".')
+                    return
+        
+        # Normalize unit to singular form for comparison
+        if unit.endswith('s') and len(unit) > 1:
+            unit_singular = unit[:-1]
+        else:
+            unit_singular = unit
+            
+        # Check if unit is valid
+        valid_units = ['second', 'minute', 'hour']
+        if unit_singular in valid_units:
+            # Convert to seconds
+            if unit_singular == 'minute':
+                value *= 60
+            elif unit_singular == 'hour':
+                value *= 3600
+                
+            display.add_timer('main_timer', timedelta(seconds=value))
+            timer_active = True
+            await speak_text(f'Timer set for {value} {unit}')
+            await asyncio.sleep(value)
+            timer_active = False
+            display.remove_timer('main_timer')
+            await speak_text('Timer complete!')
+        else:
+            await speak_text('Invalid time unit. Use seconds, minutes, or hours.')
     except Exception as e:
         logging.error(f'Error setting timer: {e}')
+        await speak_text('Error setting timer.')
 
 async def stop_timer():
     global timer_active
     if timer_active:
-        import pygame
-        pygame.mixer.music.stop()
-        pygame.mixer.quit()
+        display.remove_timer('main_timer')
         timer_active = False
         logging.info('Timer stopped')
 
@@ -342,31 +390,43 @@ assistant_task = None
 
 def start_assistant():
     global assistant_loop, assistant_task
+    
     if assistant_loop is not None:
         logging.info('Assistant is already running')
         return
-
+    
+    # Start the system tray in a separate thread
+    tray_thread = threading.Thread(target=create_system_tray, daemon=True)
+    tray_thread.start()
+    
+    logging.info('Starting assistant...')
     assistant_loop = asyncio.new_event_loop()
     asyncio.set_event_loop(assistant_loop)
     assistant_task = assistant_loop.create_task(async_main())
-    logging.info('Starting assistant...')
-    try:
-        assistant_loop.run_until_complete(assistant_task)
-    except asyncio.CancelledError:
-        logging.info('Assistant stopped')
-    finally:
-        assistant_loop.close()
-        assistant_loop = None
-        assistant_task = None
+    assistant_loop.run_until_complete(assistant_task)
 
 def stop_assistant():
     global assistant_loop, assistant_task
+    
     if assistant_loop is None:
         logging.info('Assistant is not running')
         return
 
-    assistant_task.cancel()
-    logging.info('Stopping assistant...')
+    try:
+        assistant_task.cancel()
+        logging.info('Stopping assistant...')
+        
+        # Give it a moment to clean up
+        import time
+        time.sleep(0.5)
+        
+        # Close the loop
+        assistant_loop.close()
+    except Exception as e:
+        logging.error(f"Error stopping assistant: {e}")
+    finally:
+        assistant_loop = None
+        assistant_task = None
 
 # Function to create system tray icon
 def create_system_tray():
@@ -386,13 +446,13 @@ def create_system_tray():
     icon = pystray.Icon('Marvin', image, 'Marvin Voice Assistant', menu)
     icon.run()
 
-# Start the system tray in a separate thread
-tray_thread = threading.Thread(target=create_system_tray)
-tray_thread.daemon = True
-tray_thread.start()
-
 def main():
-    start_assistant()
+    # Create a thread for the assistant
+    assistant_thread = threading.Thread(target=start_assistant, daemon=True)
+    assistant_thread.start()
+    
+    # Run the display GUI in the main thread
+    display.run()
 
 if __name__ == "__main__":
     main()
