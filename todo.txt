@@ -1,1 +1,2 @@
-Make a display to show the conversation, actions run, and time left on timers running.
+- Make a display to show the conversation, actions run, and time left on timers running.
+- Add an action to query the system time when asked and say it.
