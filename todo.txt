@@ -1,2 +1,4 @@
 - When there are multiple timers active at the same time, only the first one shows up in the Time Remaining section of the display.
+- Add an input box to the display to be able to chat with Marvin through text instead of voice.
 - Add the ability to open the display from the app's system tray icon.
+- Add the ability to add to this todo list (todo.txt).
