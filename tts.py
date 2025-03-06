@@ -5,7 +5,7 @@ import edge_tts
 
 default_voice = "en-GB-RyanNeural"
 
-async def speak_text(text: str, voice=default_voice, gain_db=10):
+async def speak_text(text: str, voice=default_voice, gain_db=8):
     import tempfile
     import time
     
