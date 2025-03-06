@@ -2,6 +2,7 @@ import tkinter as tk
 from tkinter import ttk
 import json
 from datetime import datetime
+import threading
 
 class DisplayGUI:
     def __init__(self):
@@ -51,26 +52,28 @@ class DisplayGUI:
         
         # Start update loop
         self.update_interval = 1000  # 1 second
+        self.update_lock = threading.Lock()
         self.update_display()
     
     def update_display(self):
         # Schedule next update
         self.root.after(self.update_interval, self.update_display)
         self.update_timers()
-    
+
     def update_timers(self):
-        # Clear existing timer entries
-        for item in self.timers_tree.get_children():
-            self.timers_tree.delete(item)
-        
-        # Update the display with current timers
-        for name, end_time in self.timers.items():
-            time_left = end_time - datetime.now()
-            if time_left.total_seconds() > 0:
-                minutes, seconds = divmod(int(time_left.total_seconds()), 60)
-                hours, minutes = divmod(minutes, 60)
-                time_str = f"{hours:02d}:{minutes:02d}:{seconds:02d}"
-                self.timers_tree.insert('', tk.END, values=(time_str,))
+        with self.update_lock:
+            # Clear existing timer entries
+            for item in self.timers_tree.get_children():
+                self.timers_tree.delete(item)
+            
+            # Update the display with current timers
+            for name, end_time in self.timers.items():
+                time_left = end_time - datetime.now()
+                if time_left.total_seconds() > 0:
+                    minutes, seconds = divmod(int(time_left.total_seconds()), 60)
+                    hours, minutes = divmod(minutes, 60)
+                    time_str = f"{hours:02d}:{minutes:02d}:{seconds:02d}"
+                    self.timers_tree.insert('', tk.END, values=(time_str,))
     
     def on_close(self):
         # Instead of destroying the window, just hide it

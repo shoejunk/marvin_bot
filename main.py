@@ -39,11 +39,8 @@ logging.basicConfig(level=logging.DEBUG,
 display = Display()
 
 # Add global timer control variable
-timer_active = False
-
-def get_time():
-    import datetime
-    return datetime.datetime.now().strftime('%H:%M')
+if 'timer_counter' not in globals():
+    timer_counter = 0
 
 async def async_main():
     logging.debug("System prompt: %s", system_prompt)
@@ -321,7 +318,7 @@ async def async_main():
         # display.show()
 
 async def set_timer(duration: str):
-    global timer_active
+    global timer_counter
     try:
         logging.debug(f"Setting timer with duration: '{duration}'")
         
@@ -396,11 +393,11 @@ async def set_timer(duration: str):
             display_unit = unit + ('s' if value != 1 else '')
             
             logging.debug(f"Setting timer for {value} {display_unit} ({seconds_value} seconds)")
-            display.add_timer('main_timer', timedelta(seconds=seconds_value))
-            timer_active = True
+            timer_name = f"timer_{timer_counter}"
+            timer_counter += 1
+            display.add_timer(timer_name, timedelta(seconds=seconds_value))
             await asyncio.sleep(seconds_value)
-            timer_active = False
-            display.remove_timer('main_timer')
+            display.remove_timer(timer_name)
             await speak_text('Timer complete!')
         else:
             # This should never happen with our mapping
@@ -411,11 +408,11 @@ async def set_timer(duration: str):
         await speak_text('Error setting timer.')
 
 async def stop_timer():
-    global timer_active
-    if timer_active:
-        display.remove_timer('main_timer')
-        timer_active = False
-        logging.info('Timer stopped')
+    # Stop all active timers by removing each one from the display
+    active_timers = list(display.timers.keys())
+    for tname in active_timers:
+        display.remove_timer(tname)
+    logging.info('All timers stopped')
 
 # Global variable to track the running event loop
 assistant_loop = None

@@ -45,17 +45,12 @@ class Display:
         # Update the GUI timers dictionary to match
         self.gui.timers = self.timers
         
-        # Use after method for thread-safe updates
-        if hasattr(self.gui, 'root') and self.gui.root:
-            self.gui.root.after(0, self.update_timers)
-            
-        # Schedule periodic updates while the timer is running
+        # Let the GUI's update loop handle the display refresh
         self._schedule_timer_updates()
 
     def _schedule_timer_updates(self):
         """Schedule periodic updates to keep the timer display current"""
         if hasattr(self.gui, 'root') and self.gui.root and self.timers:
-            self.gui.root.after(0, self.update_timers)
             self.gui.root.after(1000, self._schedule_timer_updates)  # Update every second
 
     def remove_timer(self, name):
@@ -64,28 +59,10 @@ class Display:
             
             # Update the GUI timers dictionary to match
             self.gui.timers = self.timers
-            
-            # Use after method for thread-safe updates
-            if hasattr(self.gui, 'root') and self.gui.root:
-                self.gui.root.after(0, self.update_timers)
 
     def update_timers(self):
-        # Use after method for thread-safe updates if not already in the main thread
-        if hasattr(self.gui, 'root') and self.gui.root:
-            try:
-                # Clear existing timer entries
-                self.gui.timers_tree.delete(*self.gui.timers_tree.get_children())
-                
-                # Update the display with current timers
-                for name, end_time in self.timers.items():
-                    time_left = end_time - datetime.now()
-                    if time_left.total_seconds() > 0:
-                        minutes, seconds = divmod(int(time_left.total_seconds()), 60)
-                        hours, minutes = divmod(minutes, 60)
-                        time_str = f"{hours:02d}:{minutes:02d}:{seconds:02d}"
-                        self.gui.timers_tree.insert('', tk.END, values=(time_str,))
-            except Exception as e:
-                logging.error(f"Error updating timers: {e}")
+        # This method is no longer needed as the GUI handles display updates
+        pass
 
     def get_time_left(self, name):
         if name in self.timers:
