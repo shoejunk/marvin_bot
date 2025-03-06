@@ -8,5 +8,5 @@ action_strings = [
     'read_file', 'write_file', 'list_files', 'delete_file', 
     'edit_file', 'append_to_file', 'create_directory', 
     'move_file', 'copy_file', 'search_files', 'get_time',
-    'dictate'
+    'dictate', 'write_code'
 ]

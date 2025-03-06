@@ -314,6 +314,12 @@ async def async_main():
             elif action_name.startswith('dictate'):
                 dictated_text = action[len("dictate"):].strip()
                 handle_dictate(dictated_text)
+            elif action_name.startswith('write_code'):
+                code = action[len('write_code'):].strip()
+                if code:
+                    logging.info(f"Detected action: write_code with code: {code}")
+                    display.add_conversation(f"Action: write_code with code: {code}")
+                    handle_dictate(code)
             else:
                 logging.warning(f"Action '{normalized_action}' not recognized in the action list.")
                 display.add_conversation(f"Unknown action: {action_name}")
