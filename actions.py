@@ -7,5 +7,6 @@ action_strings = [
     'reboot', 'set_timer', 'start_timer', 'stop_timer', 'shut_down', 'stop_music',
     'read_file', 'write_file', 'list_files', 'delete_file', 
     'edit_file', 'append_to_file', 'create_directory', 
-    'move_file', 'copy_file', 'search_files', 'get_time'
+    'move_file', 'copy_file', 'search_files', 'get_time',
+    'dictate'
 ]

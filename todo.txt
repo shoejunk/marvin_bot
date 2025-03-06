@@ -1,4 +1,3 @@
-- Add the ability to dictate, which means that whatever I say should show up as text where my cursor is in any application on my Windows machine. If that is not possible, the text should go into the clipboard.
 - Add an input box to the display to be able to chat with Marvin through text instead of voice.
 - Add the ability to open the display from the app's system tray icon.
 - Add the ability to add to this todo list (todo.txt).

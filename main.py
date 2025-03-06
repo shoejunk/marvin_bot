@@ -17,6 +17,7 @@ from llm import get_ai_response, system_prompt
 from waiting_sound import play_waiting_sound
 from meross_control import MerossController
 from actions import action_strings  # Import shared valid actions list
+from dictate import handle_dictate  # Import dictate function from new module
 from conversation_history import update_history
 from spotify import SpotifyClient
 from file_operations import FileOperations  # Import the new FileOperations class
@@ -41,6 +42,10 @@ display = Display()
 # Add global timer control variable
 if 'timer_counter' not in globals():
     timer_counter = 0
+
+def get_time():
+    import datetime
+    return datetime.datetime.now().strftime('%H:%M')
 
 async def async_main():
     logging.debug("System prompt: %s", system_prompt)
@@ -306,6 +311,9 @@ async def async_main():
                     await speak_text("No search text specified")
             elif action_name.startswith('get_time'):
                 await speak_text(get_time())
+            elif action_name.startswith('dictate'):
+                dictated_text = action[len("dictate"):].strip()
+                handle_dictate(dictated_text)
             else:
                 logging.warning(f"Action '{normalized_action}' not recognized in the action list.")
                 display.add_conversation(f"Unknown action: {action_name}")
