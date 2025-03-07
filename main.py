@@ -32,12 +32,23 @@ from browser_use import Agent  # Import the Agent class from browser_use
 from langchain_openai import ChatOpenAI  # Import ChatOpenAI
 
 # Adding more detailed logging configuration
-logging.basicConfig(level=logging.DEBUG, 
-                   format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-                   handlers=[
-                       logging.FileHandler("marvin_debug.log"),
-                       logging.StreamHandler()
-                   ])
+try:
+    # Configure root logger
+    logging.basicConfig(level=logging.DEBUG, 
+                       format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+                       handlers=[
+                           logging.StreamHandler()
+                       ])
+    
+    # Add file handler separately to handle permission errors gracefully
+    file_handler = logging.FileHandler("marvin.log", delay=True)
+    file_handler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
+    logging.getLogger().addHandler(file_handler)
+except Exception as e:
+    print(f"Warning: Could not set up file logging: {e}")
+    # Ensure basic console logging is still available
+    logging.basicConfig(level=logging.DEBUG, 
+                       format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 
 display = Display()
 
