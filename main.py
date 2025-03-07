@@ -49,8 +49,8 @@ def get_time():
 
 async def async_main():
     logging.debug("System prompt: %s", system_prompt)
-    logging.debug("Initializing Meross Controller...")
-    meross_controller = await MerossController.init()
+    # logging.debug("Initializing Meross Controller...")
+    # meross_controller = await MerossController.init()
     spotify_client = SpotifyClient()
     
     # Initialize the file operations manager
