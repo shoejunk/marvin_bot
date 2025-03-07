@@ -103,6 +103,9 @@ async def async_main():
         # Strip out action tags for display
         display_reply = re.sub(r'<action>.*?</action>', '', reply, flags=re.IGNORECASE)
         display.add_conversation(display_reply, speaker='marvin')
+        
+        # Update the conversation history
+        update_history(user_input, reply)
 
         # Remove any <action> tags from the text before speaking.
         text_to_speak = re.sub(r'<action>.*?</action>', '', reply, flags=re.IGNORECASE)
@@ -136,9 +139,11 @@ async def async_main():
             if params:
                 logging.info(f"Detected action: {action_name} with params: {params}")
                 display.add_conversation(f"Action: {action_name} with params: {params}")
+                update_history(f"Action: {action_name} with params: {params}", "")
             else:
                 logging.info(f"Detected action: {action_name}")
                 display.add_conversation(f"Action: {action_name}")
+                update_history(f"Action: {action_name}", "")
             
             # Handle existing actions
             if action_name.startswith("turn_on_light"):
@@ -210,6 +215,7 @@ async def async_main():
                 query = params[0] if params else None
                 if query:
                     display.add_conversation(f"Browsing the internet for: {query}", speaker='marvin')
+                    update_history(f"Browsing the internet for: {query}", "")
                     try:
                         # Set up a custom log handler to capture the browser_use agent's output
                         class BrowserUseLogHandler(logging.Handler):
@@ -245,19 +251,23 @@ async def async_main():
                         if browser_log_handler.result:
                             result_text = browser_log_handler.result
                             display.add_conversation(result_text, speaker='marvin')
+                            update_history(result_text, "")
                             await speak_text(result_text)
                         else:
                             # Default message if we couldn't capture a result
                             display.add_conversation("Browser search complete, but couldn't extract specific results.", speaker='marvin')
+                            update_history("Browser search complete, but couldn't extract specific results.", "")
                             await speak_text("Browser search complete, but I couldn't extract specific results.")
                     except Exception as e:
                         error_message = f"Error during browser search: {e}"
                         logging.error(error_message)
                         display.add_conversation(f"❌ {error_message}", speaker='marvin')
+                        update_history(f"❌ {error_message}", "")
                         await speak_text("I encountered an error while browsing the internet.")
                 else:
                     await speak_text("No search query specified for browsing the internet.")
                     display.add_conversation("No search query specified for browsing the internet.", speaker='marvin')
+                    update_history("No search query specified for browsing the internet.", "")
                     
             elif action_name.startswith('write_file'):
                 if len(params) >= 2:
@@ -379,10 +389,12 @@ async def async_main():
                 if code:
                     logging.info(f"Detected action: write_code with code: {code}")
                     display.add_conversation(f"Action: write_code with code: {code}")
+                    update_history(f"Action: write_code with code: {code}", "")
                     handle_dictate(code)
             else:
                 logging.warning(f"Action '{normalized_action}' not recognized in the action list.")
                 display.add_conversation(f"Unknown action: {action_name}")
+                update_history(f"Unknown action: {action_name}", "")
 
         # if text_to_speak:
         #     logging.info(f"Marvin says: {text_to_speak}")
