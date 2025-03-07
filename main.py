@@ -28,6 +28,8 @@ import threading
 import logging
 import json
 from display import Display
+from browser_use import Agent  # Import the Agent class from browser_use
+from langchain_openai import ChatOpenAI  # Import ChatOpenAI
 
 # Adding more detailed logging configuration
 logging.basicConfig(level=logging.DEBUG, 
@@ -105,6 +107,10 @@ async def async_main():
         # Remove any <action> tags from the text before speaking.
         text_to_speak = re.sub(r'<action>.*?</action>', '', reply, flags=re.IGNORECASE)
         text_to_speak = re.sub(r'<[^>]+>', '', text_to_speak).strip()
+
+        if text_to_speak:
+            logging.info(f"Marvin says: {text_to_speak}")
+            await speak_text(text_to_speak)
 
         # Parse the AI reply for <action> tags to trigger actions.
         action_tags = re.findall(r'<action>(.*?)</action>', reply, flags=re.IGNORECASE)
@@ -198,6 +204,60 @@ async def async_main():
                         await speak_text(f"Could not read file {filename}")
                 else:
                     await speak_text("No filename specified for reading")
+            
+            # Browser use action
+            elif action_name.startswith('browse_internet'):
+                query = params[0] if params else None
+                if query:
+                    display.add_conversation(f"Browsing the internet for: {query}", speaker='marvin')
+                    try:
+                        # Set up a custom log handler to capture the browser_use agent's output
+                        class BrowserUseLogHandler(logging.Handler):
+                            def __init__(self):
+                                super().__init__()
+                                self.result = None
+                            
+                            def emit(self, record):
+                                if record.name == 'browser_use.agent.service' and 'Result:' in record.getMessage():
+                                    # Extract the result from the log message
+                                    result_msg = record.getMessage()
+                                    if '\U0001f4c4 Result:' in result_msg:
+                                        self.result = result_msg.split('\U0001f4c4 Result:')[1].strip()
+                                    elif 'Result:' in result_msg:
+                                        self.result = result_msg.split('Result:')[1].strip()
+                        
+                        # Add the custom log handler
+                        browser_log_handler = BrowserUseLogHandler()
+                        browser_log_handler.setLevel(logging.INFO)
+                        logging.getLogger('browser_use').addHandler(browser_log_handler)
+                        
+                        # Create and run the browser agent
+                        agent = Agent(
+                            task=query,
+                            llm=ChatOpenAI(model="gpt-4o"),
+                        )
+                        await agent.run()
+                        
+                        # Remove the custom log handler
+                        logging.getLogger('browser_use').removeHandler(browser_log_handler)
+                        
+                        # Check if we captured a result
+                        if browser_log_handler.result:
+                            result_text = browser_log_handler.result
+                            display.add_conversation(result_text, speaker='marvin')
+                            await speak_text(result_text)
+                        else:
+                            # Default message if we couldn't capture a result
+                            display.add_conversation("Browser search complete, but couldn't extract specific results.", speaker='marvin')
+                            await speak_text("Browser search complete, but I couldn't extract specific results.")
+                    except Exception as e:
+                        error_message = f"Error during browser search: {e}"
+                        logging.error(error_message)
+                        display.add_conversation(f"❌ {error_message}", speaker='marvin')
+                        await speak_text("I encountered an error while browsing the internet.")
+                else:
+                    await speak_text("No search query specified for browsing the internet.")
+                    display.add_conversation("No search query specified for browsing the internet.", speaker='marvin')
                     
             elif action_name.startswith('write_file'):
                 if len(params) >= 2:
@@ -324,12 +384,9 @@ async def async_main():
                 logging.warning(f"Action '{normalized_action}' not recognized in the action list.")
                 display.add_conversation(f"Unknown action: {action_name}")
 
-        if text_to_speak:
-            logging.info(f"Marvin says: {text_to_speak}")
-            await speak_text(text_to_speak)
-
-        # No need to explicitly call display.show() here as the window should already be visible
-        # display.show()
+        # if text_to_speak:
+        #     logging.info(f"Marvin says: {text_to_speak}")
+        #     await speak_text(text_to_speak)
 
 async def set_timer(duration: str):
     global timer_counter
