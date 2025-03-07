@@ -5,4 +5,5 @@ conversation_history.json
 # Spotify API cache
 .cache
 marvin.log
+marvin_debug.log
 artifacts/
