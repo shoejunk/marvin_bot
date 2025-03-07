@@ -10,28 +10,9 @@ import argparse
 from file_operations import FileOperations
 
 # Configure logging
+logging.basicConfig(level=logging.INFO, 
+                    format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
-
-# Only add handlers if they don't exist already
-if not logger.handlers:
-    try:
-        # Set the logging level
-        logger.setLevel(logging.INFO)
-        
-        # Create a stream handler for console output
-        stream_handler = logging.StreamHandler()
-        formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
-        stream_handler.setFormatter(formatter)
-        logger.addHandler(stream_handler)
-        
-        # Try to add file handler only if we can access the file
-        log_file = "marvin.log"
-        if not os.path.exists(log_file) or os.access(log_file, os.W_OK):
-            file_handler = logging.FileHandler(log_file, delay=True)
-            file_handler.setFormatter(formatter)
-            logger.addHandler(file_handler)
-    except Exception as e:
-        print(f"Warning: Could not set up complete logging for {__name__}: {e}")
 
 def main():
     # Set up command-line argument parsing

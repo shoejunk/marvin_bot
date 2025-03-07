@@ -78,7 +78,7 @@ Marvin runs in the system tray, allowing you to:
 
 ## Troubleshooting
 
-- Check the `marvin.log` file for detailed logs if you encounter any issues.
+- Check the `marvin_debug.log` file for detailed logs if you encounter any issues.
 - Ensure your microphone is properly connected and configured.
 - Verify that your API keys in the `.env` file are correct.
 
