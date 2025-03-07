@@ -47,7 +47,8 @@ if 'timer_counter' not in globals():
 
 def get_time():
     import datetime
-    return datetime.datetime.now().strftime('%H:%M')
+    now = datetime.datetime.now()
+    return now.strftime('%I:%M %p').lstrip('0')
 
 async def async_main():
     logging.debug("System prompt: %s", system_prompt)
@@ -172,7 +173,6 @@ async def async_main():
                     decrement = int(params[0]) if params and params[0].isdigit() else 10
                     spotify_client.volume_down(decrement)
                 elif action_name.startswith("reboot"):
-                    await speak_text("Marvin rebooting")
                     logging.info("Rebooting Marvin...")
                     bat_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "run_marvin.bat"))
                     logging.info(f"Running batch file: {bat_path}")
@@ -394,7 +394,10 @@ async def async_main():
                         else:
                             await speak_text(f"No files containing '{search_text}' found")
                 elif action_name.startswith('get_time'):
-                    await speak_text(get_time())
+                    time_text = get_time()
+                    display.add_conversation(f"Marvin: {time_text}")
+                    update_history(f"Marvin: {time_text}", "")
+                    await speak_text(time_text)
                 elif action_name.startswith('dictate'):
                     dictated_text = action[len("dictate"):].strip()
                     handle_dictate(dictated_text)
