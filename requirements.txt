@@ -1,0 +1,11 @@
+openai>=1.0.0
+python-dotenv>=1.0.0
+pystray>=0.19.4
+pillow>=9.0.0
+langchain>=0.0.267
+langchain-openai>=0.0.2
+pydub>=0.25.1
+pyaudio>=0.2.13
+SpeechRecognition>=3.10.0
+meross-iot>=0.4.5.0
+spotipy>=2.23.0

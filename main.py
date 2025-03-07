@@ -250,9 +250,22 @@ async def async_main():
                         # Check if we captured a result
                         if browser_log_handler.result:
                             result_text = browser_log_handler.result
+                            
+                            # Send the result to the LLM for summarization
+                            summarization_prompt = f"Below are the results from a web search. Please provide a concise summary of these results, while preserving the key information:\n\n{result_text}"
+                            summary = get_ai_response(summarization_prompt)
+                            
+                            # Extract just the summary text without any action tags
+                            summary_text = re.sub(r'<action>.*?</action>', '', summary).strip()
+                            
+                            # Display the full results in the UI
                             display.add_conversation(result_text, speaker='marvin')
+                            
+                            # Update history with full results
                             update_history(result_text, "")
-                            await speak_text(result_text)
+                            
+                            # Speak the summarized version
+                            await speak_text(summary_text)
                         else:
                             # Default message if we couldn't capture a result
                             display.add_conversation("Browser search complete, but couldn't extract specific results.", speaker='marvin')
