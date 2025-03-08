@@ -46,12 +46,25 @@ browser = Browser(
 )
 
 # Adding more detailed logging configuration
-logging.basicConfig(level=logging.DEBUG, 
-                   format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-                   handlers=[
-                       logging.FileHandler("marvin_debug.log"),
-                       logging.StreamHandler()
-                   ])
+try:
+    # Configure root logger
+    logging.basicConfig(
+        level=logging.DEBUG,
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+        handlers=[
+            logging.FileHandler("marvin.log", mode='a'),
+            logging.StreamHandler()
+        ]
+    )
+    # Create a module logger
+    logger = logging.getLogger(__name__)
+    logger.debug("Logging initialized successfully")
+except Exception as e:
+    print(f"Error setting up logging: {e}")
+    # Fallback minimal logging
+    logging.basicConfig(level=logging.INFO)
+    logger = logging.getLogger(__name__)
+    logger.error(f"Failed to set up logging handlers: {e}")
 
 display = Display()
 
@@ -65,14 +78,14 @@ def get_time():
     return now.strftime('%I:%M %p').lstrip('0')
 
 async def async_main():
-    logging.debug("System prompt: %s", system_prompt)
-    logging.debug("Initializing Meross Controller...")
+    logger.debug("System prompt: %s", system_prompt)
+    logger.debug("Initializing Meross Controller...")
     meross_controller = await MerossController.init()
     spotify_client = SpotifyClient()
     
     # Initialize the file operations manager
     file_ops = FileOperations()
-    logging.debug("File operations initialized with artifacts directory: %s", file_ops.artifacts_dir)
+    logger.debug("File operations initialized with artifacts directory: %s", file_ops.artifacts_dir)
     
     try:
         await speak_text("Marvin online")
@@ -82,10 +95,10 @@ async def async_main():
             try:
                 user_input = await asyncio.to_thread(transcribe_speech_to_text)
             except TimeoutError:
-                logging.error("Error: Connection timed out while transcribing speech.")
+                logger.error("Error: Connection timed out while transcribing speech.")
                 continue
             except Exception as e:
-                logging.error(f"An unexpected error occurred: {e}")
+                logger.error(f"An unexpected error occurred: {e}")
                 continue
 
             if not user_input:
@@ -104,7 +117,7 @@ async def async_main():
                     break
 
             if not matched_wake_word:
-                logging.info("Waiting for wake word...")
+                logger.info("Waiting for wake word...")
                 continue
 
             # Remove the detected wake word from the beginning of the input.
@@ -128,7 +141,7 @@ async def async_main():
             text_to_speak = re.sub(r'<[^>]+>', '', text_to_speak).strip()
 
             if text_to_speak:
-                logging.info(f"Marvin says: {text_to_speak}")
+                logger.info(f"Marvin says: {text_to_speak}")
                 await speak_text(text_to_speak)
 
             # Parse the AI reply for <action> tags to trigger actions.
@@ -153,11 +166,11 @@ async def async_main():
                 
                 # Log the action
                 if params:
-                    logging.info(f"Detected action: {action_name} with params: {params}")
+                    logger.info(f"Detected action: {action_name} with params: {params}")
                     display.add_conversation(f"Action: {action_name} with params: {params}")
                     update_history(f"Action: {action_name} with params: {params}", "")
                 else:
-                    logging.info(f"Detected action: {action_name}")
+                    logger.info(f"Detected action: {action_name}")
                     display.add_conversation(f"Action: {action_name}")
                     update_history(f"Action: {action_name}", "")
                 
@@ -187,9 +200,9 @@ async def async_main():
                     decrement = int(params[0]) if params and params[0].isdigit() else 10
                     spotify_client.volume_down(decrement)
                 elif action_name.startswith("reboot"):
-                    logging.info("Rebooting Marvin...")
+                    logger.info("Rebooting Marvin...")
                     bat_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "run_marvin.bat"))
-                    logging.info(f"Running batch file: {bat_path}")
+                    logger.info(f"Running batch file: {bat_path}")
                     subprocess.Popen([bat_path], shell=True, creationflags=subprocess.CREATE_NEW_CONSOLE)
                     os._exit(0)
                 elif action_name.startswith('set_timer') or action_name.startswith('start_timer'):
@@ -197,13 +210,13 @@ async def async_main():
                     if duration:
                         # Replace underscores with spaces if present
                         duration = duration.replace('_', ' ')
-                        logging.info(f"Setting timer with cleaned duration: '{duration}'")
+                        logger.info(f"Setting timer with cleaned duration: '{duration}'")
                         asyncio.create_task(set_timer(duration))
                 elif action_name.startswith('stop_timer'):
                     await stop_timer()
                 elif action_name.startswith('shut_down'):
                     await speak_text('Shutting down Marvin')
-                    logging.info('Shutting down Marvin...')
+                    logger.info('Shutting down Marvin...')
                     # Ensure Meross controller is properly shut down
                     await meross_controller.shutdown()
                     stop_assistant()
@@ -292,7 +305,7 @@ async def async_main():
                                 await speak_text("Browser search complete, but I couldn't extract specific results.")
                         except Exception as e:
                             error_message = f"Error during browser search: {e}"
-                            logging.error(error_message)
+                            logger.error(error_message)
                             display.add_conversation(f"❌ {error_message}", speaker='marvin')
                             update_history(f"❌ {error_message}", "")
                             await speak_text("I encountered an error while browsing the internet.")
@@ -420,12 +433,12 @@ async def async_main():
                 elif action_name.startswith('write_code'):
                     code = action[len('write_code'):].strip()
                     if code:
-                        logging.info(f"Detected action: write_code with code: {code}")
+                        logger.info(f"Detected action: write_code with code: {code}")
                         display.add_conversation(f"Action: write_code with code: {code}")
                         update_history(f"Action: write_code with code: {code}", "")
                         handle_dictate(code)
                 else:
-                    logging.warning(f"Action '{normalized_action}' not recognized in the action list.")
+                    logger.warning(f"Action '{normalized_action}' not recognized in the action list.")
                     display.add_conversation(f"Unknown action: {action_name}")
                     update_history(f"Unknown action: {action_name}", "")
 
@@ -435,26 +448,26 @@ async def async_main():
     finally:
         # Ensure Meross controller is properly shut down even if an exception occurs
         if 'meross_controller' in locals():
-            logging.info("Shutting down Meross controller...")
+            logger.info("Shutting down Meross controller...")
             await meross_controller.shutdown()
 
 async def set_timer(duration: str):
     global timer_counter
     try:
-        logging.debug(f"Setting timer with duration: '{duration}'")
+        logger.debug(f"Setting timer with duration: '{duration}'")
         
         # First, check if the duration is already in the format "X unit"
         duration_parts = duration.split()
-        logging.debug(f"Duration parts: {duration_parts}")
+        logger.debug(f"Duration parts: {duration_parts}")
         
         if len(duration_parts) == 2:
             # Format is already "X unit"
             try:
                 value = int(duration_parts[0])
                 unit_input = duration_parts[1].lower()
-                logging.debug(f"Parsed as two parts: value={value}, unit={unit_input}")
+                logger.debug(f"Parsed as two parts: value={value}, unit={unit_input}")
             except ValueError as e:
-                logging.error(f"Error parsing value: {e}")
+                logger.error(f"Error parsing value: {e}")
                 await speak_text('Invalid timer format. The value must be a number.')
                 return
         else:
@@ -463,7 +476,7 @@ async def set_timer(duration: str):
             try:
                 value = int(duration)
                 unit_input = 'seconds'
-                logging.debug(f"Parsed as single number: {value} {unit_input}")
+                logger.debug(f"Parsed as single number: {value} {unit_input}")
             except ValueError:
                 # Try to extract number and unit from a string without spaces
                 import re
@@ -473,13 +486,13 @@ async def set_timer(duration: str):
                         value = int(match.group(1))
                         unit_abbr = match.group(2).lower()
                         unit_input = unit_abbr
-                        logging.debug(f"Parsed with regex: value={value}, unit={unit_input}")
+                        logger.debug(f"Parsed with regex: value={value}, unit={unit_input}")
                     except ValueError as e:
-                        logging.error(f"Error parsing regex match: {e}")
+                        logger.error(f"Error parsing regex match: {e}")
                         await speak_text('Invalid timer format. Use format like "5 minutes" or "5m".')
                         return
                 else:
-                    logging.error(f"Could not parse timer format: '{duration}'")
+                    logger.error(f"Could not parse timer format: '{duration}'")
                     await speak_text('Invalid timer format. Use format like "5 minutes" or "5m".')
                     return
         
@@ -493,9 +506,9 @@ async def set_timer(duration: str):
         # Try to map the input unit to a standard unit
         if unit_input in unit_map:
             unit = unit_map[unit_input]
-            logging.debug(f"Mapped '{unit_input}' to '{unit}'")
+            logger.debug(f"Mapped '{unit_input}' to '{unit}'")
         else:
-            logging.error(f"Unknown time unit: '{unit_input}'")
+            logger.error(f"Unknown time unit: '{unit_input}'")
             await speak_text(f'Invalid time unit: "{unit_input}". Use seconds, minutes, or hours.')
             return
             
@@ -513,7 +526,7 @@ async def set_timer(duration: str):
             # For display purposes, use the original format
             display_unit = unit + ('s' if value != 1 else '')
             
-            logging.debug(f"Setting timer for {value} {display_unit} ({seconds_value} seconds)")
+            logger.debug(f"Setting timer for {value} {display_unit} ({seconds_value} seconds)")
             timer_name = f"timer_{timer_counter}"
             timer_counter += 1
             display.add_timer(timer_name, timedelta(seconds=seconds_value))
@@ -522,10 +535,10 @@ async def set_timer(duration: str):
             await speak_text('Timer complete!')
         else:
             # This should never happen with our mapping
-            logging.error(f"Unexpected error: Unit '{unit}' not in valid_units after mapping")
+            logger.error(f"Unexpected error: Unit '{unit}' not in valid_units after mapping")
             await speak_text('Invalid time unit. Use seconds, minutes, or hours.')
     except Exception as e:
-        logging.error(f'Error setting timer: {e}', exc_info=True)
+        logger.error(f'Error setting timer: {e}', exc_info=True)
         await speak_text('Error setting timer.')
 
 async def stop_timer():
@@ -533,7 +546,7 @@ async def stop_timer():
     active_timers = list(display.timers.keys())
     for tname in active_timers:
         display.remove_timer(tname)
-    logging.info('All timers stopped')
+    logger.info('All timers stopped')
 
 # Global variable to track the running event loop
 assistant_loop = None
@@ -543,14 +556,14 @@ def start_assistant():
     global assistant_loop, assistant_task
     
     if assistant_loop is not None:
-        logging.info('Assistant is already running')
+        logger.info('Assistant is already running')
         return
     
     # Start the system tray in a separate thread
     tray_thread = threading.Thread(target=create_system_tray, daemon=True)
     tray_thread.start()
     
-    logging.info('Starting assistant...')
+    logger.info('Starting assistant...')
     assistant_loop = asyncio.new_event_loop()
     asyncio.set_event_loop(assistant_loop)
     assistant_task = assistant_loop.create_task(async_main())
@@ -560,7 +573,7 @@ def stop_assistant():
     global assistant_loop, assistant_task
     
     if assistant_loop is None:
-        logging.info('Assistant is not running')
+        logger.info('Assistant is not running')
         return
 
     try:
@@ -577,11 +590,11 @@ def stop_assistant():
                 import time
                 time.sleep(0.5)
             except Exception as e:
-                logging.error(f"Error shutting down Meross controller: {e}")
+                logger.error(f"Error shutting down Meross controller: {e}")
                 
             # Now cancel the main task
             assistant_task.cancel()
-            logging.info('Stopping assistant...')
+            logger.info('Stopping assistant...')
         
         # Give it a moment to clean up
         import time
@@ -590,7 +603,7 @@ def stop_assistant():
         # Close the loop
         assistant_loop.close()
     except Exception as e:
-        logging.error(f"Error stopping assistant: {e}")
+        logger.error(f"Error stopping assistant: {e}")
     finally:
         assistant_loop = None
         assistant_task = None
@@ -603,19 +616,19 @@ async def shutdown_meross():
         while frame:
             if 'meross_controller' in frame.f_locals:
                 controller = frame.f_locals['meross_controller']
-                logging.info("Shutting down Meross controller during application stop...")
+                logger.info("Shutting down Meross controller during application stop...")
                 await controller.shutdown()
                 break
             frame = frame.f_back
     except Exception as e:
-        logging.error(f"Error in shutdown_meross: {e}")
+        logger.error(f"Error in shutdown_meross: {e}")
 
 # Function to create system tray icon
 def create_system_tray():
     image = Image.open('icon.png')
     
     def on_exit(icon):
-        logging.info('Exiting Marvin from system tray...')
+        logger.info('Exiting Marvin from system tray...')
         stop_assistant()
         icon.stop()
         os._exit(0)  # Force terminate the process
