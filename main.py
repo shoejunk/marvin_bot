@@ -10,6 +10,7 @@ os.environ['PATH'] += os.pathsep + os.path.join(os.path.dirname(__file__), 'bin'
 import re
 import asyncio
 import sys
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import subprocess
 from speech import transcribe_speech_to_text
 from tts import speak_text
@@ -28,8 +29,21 @@ import threading
 import logging
 import json
 from display import Display
+from browser_use.agent.views import ActionResult
 from browser_use import Agent  # Import the Agent class from browser_use
 from langchain_openai import ChatOpenAI  # Import ChatOpenAI
+from browser_use.browser.browser import Browser, BrowserConfig
+from browser_use.browser.context import BrowserContext
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
+
+browser = Browser(
+	config=BrowserConfig(
+		chrome_instance_path=os.getenv('CHROME_PATH', '/Program Files (x86)/Google/Chrome/Application/chrome.exe'),
+	)
+)
 
 # Adding more detailed logging configuration
 logging.basicConfig(level=logging.DEBUG, 
@@ -241,9 +255,11 @@ async def async_main():
                             logging.getLogger('browser_use').addHandler(browser_log_handler)
                             
                             # Create and run the browser agent
+                            await browser.close()
                             agent = Agent(
                                 task=query,
                                 llm=ChatOpenAI(model="gpt-4o"),
+                                browser=browser,
                             )
                             await agent.run()
                             

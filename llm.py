@@ -47,10 +47,11 @@ system_prompt = (
     "\n- <action>move_file:source,destination</action> to move or rename a file"
     "\n- <action>search_files:search_text,subdirectory</action> to find files containing specific text"
     
-    "\n\nYou can now browse the internet to find information. Use this format:"
-    "\n- <action>browse_internet:search_query</action> to search the web for information. Make sure to "
-    " rephrase the search query as a command that an agent can follow to find or do what it needs to do "
-    " on the internet."
+    "\n\nYou can now browse the internet to find information and performa tasks on the internet. Use this format:"
+    "\n- <action>browse_internet:search_query</action> to search the web for information or perform actions on the "
+    " internet. Make sure to rephrase the search query or actions as a command that an agent can follow to find or "
+    "do what it needs to do on the internet. You CAN go to websites on the internet. You CAN browse and perform actions "
+    "in the browser just like a normal person. With the browse_internet action."
     
     "If they are not asking for a task, just respond in English as normal."
     "Don't forget to act like Marvin the android from The Hitchhiker's Guide to the Galaxy while still being concise "
