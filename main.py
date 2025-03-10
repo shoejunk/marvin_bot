@@ -56,12 +56,18 @@ display = Display()
 if 'timer_counter' not in globals():
     timer_counter = 0
 
+# Add global wake word state variable - default is True (wake word is required)
+wake_word_required = True
+logger.info("Wake word requirement initialized to ON")
+
 def get_time():
     import datetime
     now = datetime.datetime.now()
     return now.strftime('%I:%M %p').lstrip('0')
 
 async def async_main():
+    global wake_word_required
+    
     logger.debug("System prompt: %s", system_prompt)
     logger.debug("Initializing Meross Controller...")
     meross_controller = await MerossController.init()
@@ -73,6 +79,7 @@ async def async_main():
     
     try:
         await speak_text("Marvin online")
+        logger.info(f"Wake word requirement is currently {'ON' if wake_word_required else 'OFF'}")
         
         while True:
             # Get user input from speech transcription.
@@ -88,27 +95,40 @@ async def async_main():
             if not user_input:
                 continue
 
-            # Process commands only if a valid wake word is detected.
+            logger.info(f"Wake word requirement is currently {'ON' if wake_word_required else 'OFF'}")
+
+            # Process commands only if a valid wake word is detected or wake word is not required
             wake_words = ["marvin", "hey marvin", "ok marvin", "okay marvin", "hi marvin"]
             wake_words += ["martin", "hey martin", "ok martin", "okay martin", "hi martin"]
             wake_words += ["computer", "hey computer", "ok computer", "okay computer", "hi computer"]
             wake_words += ["PC", "hey PC", "ok PC", "okay PC", "hi PC"]
             user_input_lower = user_input.lower()
             matched_wake_word = None
-            for wake_word in wake_words:
-                if user_input_lower.startswith(wake_word):
-                    matched_wake_word = wake_word
-                    break
+            
+            # Check for wake word if required
+            if wake_word_required:
+                for wake_word in wake_words:
+                    if user_input_lower.startswith(wake_word):
+                        matched_wake_word = wake_word
+                        break
 
-            if not matched_wake_word:
-                logger.info("Waiting for wake word...")
-                continue
+                if not matched_wake_word:
+                    logger.info("Waiting for wake word...")
+                    continue
 
-            # Remove the detected wake word from the beginning of the input.
-            command = user_input[len(matched_wake_word):].strip()
+                # Remove the detected wake word from the beginning of the input.
+                command = user_input[len(matched_wake_word):].strip()
+                logger.debug(f"Wake word detected: '{matched_wake_word}', command: '{command}'")
+            else:
+                # Wake word not required, process the entire input
+                command = user_input
+                logger.info(f"Wake word OFF - Processing input without wake word: '{command}'")
 
             # Get AI response using a thread since it may block.
-            reply = await asyncio.to_thread(get_ai_response, user_input)
+            logger.debug(f"Sending to LLM: '{command}'")
+            reply = await asyncio.to_thread(get_ai_response, command)
+
+            logger.info(f"Marvin's original reply: {reply}")
 
             # Update conversation history with the current turn.
             display.add_conversation(user_input, speaker='user')
@@ -158,8 +178,19 @@ async def async_main():
                     display.add_conversation(f"Action: {action_name}")
                     update_history(f"Action: {action_name}", "")
                 
+                # Handle wake word toggle actions
+                if action_name.startswith("wake_word_off"):
+                    wake_word_required = False
+                    logger.info("Wake word requirement turned OFF")
+                    display.add_conversation("Wake word requirement turned OFF")
+                    update_history("Wake word requirement turned OFF", "")
+                elif action_name.startswith("wake_word_on"):
+                    wake_word_required = True
+                    logger.info("Wake word requirement turned ON")
+                    display.add_conversation("Wake word requirement turned ON")
+                    update_history("Wake word requirement turned ON", "")
                 # Handle existing actions
-                if action_name.startswith("turn_on_light"):
+                elif action_name.startswith("turn_on_light"):
                     await meross_controller.turn_on_light()
                 elif action_name.startswith("turn_off_light"):
                     await meross_controller.turn_off_light()
