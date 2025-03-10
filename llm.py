@@ -6,11 +6,14 @@ This module preserves <action> tags in the response for downstream processing.
 
 import os
 import re
-import logging
+from logger_config import get_logger
 from openai import OpenAI
 from dotenv import load_dotenv
 from actions import action_strings  # Import shared valid actions list
 from conversation_history import load_history
+
+# Get a logger for this module
+logger = get_logger(__name__)
 
 # Load environment variables from a .env file (if present)
 load_dotenv()
@@ -63,33 +66,53 @@ def clean_generated_text(original_text: str) -> str:
     Cleans the generated text from the language model.
     It preserves <action> tags while removing other XML tags and extraneous whitespace.
     """
-    logging.debug("Original response: %s", original_text)
+    logger.debug("Original response: %s", original_text)
     # Remove any XML tags that are NOT <action> tags.
     cleaned_text = re.sub(r'<(?!/?action\b)[^>]+>', '', original_text)
     cleaned_text = re.sub(r'\s+', ' ', cleaned_text).strip()
     cleaned_text = re.sub(r'\*', '', cleaned_text)
     return cleaned_text.strip()
 
-def get_ai_response(user_input: str) -> str:
+def get_ai_response(user_input):
     """
     Gets a response from the OpenAI API.
     """
-    history = load_history()
-    messages = [{"role": "system", "content": system_prompt}]
-    # Append each previous conversation turn.
-    for turn in history:
-        messages.append({"role": "user", "content": turn["user"]})
-        messages.append({"role": "assistant", "content": turn["assistant"]})
-    # Append the current prompt.
-    messages.append({"role": "user", "content": user_input})
     try:
+        logger.debug("Getting AI response for input: %s", user_input)
+        
+        # Load conversation history to provide context
+        history = load_history()
+        logger.debug("Loaded %d conversation turns from history", len(history))
+        
+        # Prepare messages with system prompt and history
+        messages = [{"role": "system", "content": system_prompt}]
+        
+        # Add conversation history (limited to last few turns for context)
+        history_limit = 5  # Limit to last 5 turns for context
+        for turn in history[-history_limit:]:
+            messages.append({"role": "user", "content": turn["user"]})
+            messages.append({"role": "assistant", "content": turn["assistant"]})
+        
+        # Add the current user input
+        messages.append({"role": "user", "content": user_input})
+        
+        logger.debug("Sending request to OpenAI with %d messages", len(messages))
+        
+        # Get response from OpenAI
         response = client.chat.completions.create(
-            model="gpt-4o-mini",
+            model="gpt-3.5-turbo",
             messages=messages,
-            temperature=0.7
+            temperature=0.7,
+            max_tokens=500
         )
+        
         assistant_reply = response.choices[0].message.content
-        return clean_generated_text(assistant_reply)
+        logger.debug("Received response from OpenAI, cleaning text")
+        
+        cleaned_reply = clean_generated_text(assistant_reply)
+        logger.debug("Returning cleaned response: %s", cleaned_reply)
+        
+        return cleaned_reply
     except Exception as e:
-        logging.error("Error using OpenAI API: %s", e)
+        logger.error("Error using OpenAI API: %s", e)
         return "I'm sorry. My systems are offline."

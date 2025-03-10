@@ -1,9 +1,9 @@
 import speech_recognition as sr
-import logging
 import time
+from logger_config import get_logger
 
-# Configure logging to use the unified marvin.log approach
-logger = logging.getLogger(__name__)
+# Configure logging using the new thread-specific logger
+logger = get_logger(__name__)
 
 # Track consecutive failed attempts to dynamically adjust sensitivity
 consecutive_failures = 0

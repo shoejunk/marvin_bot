@@ -26,7 +26,6 @@ from datetime import timedelta
 import pystray
 from PIL import Image
 import threading
-import logging
 import json
 from display import Display
 from browser_use.agent.views import ActionResult
@@ -35,6 +34,8 @@ from langchain_openai import ChatOpenAI  # Import ChatOpenAI
 from browser_use.browser.browser import Browser, BrowserConfig
 from browser_use.browser.context import BrowserContext
 from dotenv import load_dotenv
+# Import the new logger configuration
+from logger_config import get_logger, shutdown_logging
 
 # Load environment variables from .env file
 load_dotenv()
@@ -45,26 +46,9 @@ browser = Browser(
 	)
 )
 
-# Adding more detailed logging configuration
-try:
-    # Configure root logger
-    logging.basicConfig(
-        level=logging.DEBUG,
-        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-        handlers=[
-            logging.FileHandler("marvin.log", mode='a'),
-            logging.StreamHandler()
-        ]
-    )
-    # Create a module logger
-    logger = logging.getLogger(__name__)
-    logger.debug("Logging initialized successfully")
-except Exception as e:
-    print(f"Error setting up logging: {e}")
-    # Fallback minimal logging
-    logging.basicConfig(level=logging.INFO)
-    logger = logging.getLogger(__name__)
-    logger.error(f"Failed to set up logging handlers: {e}")
+# Get a logger for this module using the new configuration
+logger = get_logger(__name__)
+logger.debug("Main module initialized")
 
 display = Display()
 
@@ -552,77 +536,65 @@ async def stop_timer():
 assistant_loop = None
 assistant_task = None
 
-def start_assistant():
+async def stop_assistant():
+    """Stop the assistant and clean up resources."""
     global assistant_loop, assistant_task
     
-    if assistant_loop is not None:
-        logger.info('Assistant is already running')
-        return
+    logger.info("Stopping assistant...")
     
-    # Start the system tray in a separate thread
-    tray_thread = threading.Thread(target=create_system_tray, daemon=True)
-    tray_thread.start()
-    
-    logger.info('Starting assistant...')
-    assistant_loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(assistant_loop)
-    assistant_task = assistant_loop.create_task(async_main())
-    assistant_loop.run_until_complete(assistant_task)
-
-def stop_assistant():
-    global assistant_loop, assistant_task
-    
-    if assistant_loop is None:
-        logger.info('Assistant is not running')
-        return
-
     try:
-        # Ensure any active tasks are properly cleaned up
+        # Cancel the assistant task if it's running
         if assistant_task and not assistant_task.done():
-            # Try to shut down Meross controller if it exists in the main task
-            try:
-                # Create a task to shut down the Meross controller
-                asyncio.run_coroutine_threadsafe(
-                    shutdown_meross(), 
-                    assistant_loop
-                )
-                # Give it a moment to complete the shutdown
-                import time
-                time.sleep(0.5)
-            except Exception as e:
-                logger.error(f"Error shutting down Meross controller: {e}")
-                
-            # Now cancel the main task
             assistant_task.cancel()
-            logger.info('Stopping assistant...')
+            try:
+                # Wait for the task to be cancelled
+                await asyncio.wait_for(assistant_task, timeout=5.0)
+            except asyncio.TimeoutError:
+                logger.error("Timeout waiting for assistant task to cancel")
+            except asyncio.CancelledError:
+                logger.debug("Assistant task cancelled successfully")
+            except Exception as e:
+                logger.error(f"Error cancelling assistant task: {e}")
         
-        # Give it a moment to clean up
-        import time
-        time.sleep(0.5)
+        # Clean up the event loop
+        if assistant_loop and assistant_loop.is_running():
+            # Schedule a callback to stop the loop
+            assistant_loop.call_soon_threadsafe(assistant_loop.stop)
+            
+            # Wait for the loop to stop (with timeout)
+            start_time = time.time()
+            while assistant_loop.is_running() and time.time() - start_time < 5.0:
+                time.sleep(0.1)
+                
+            if assistant_loop.is_running():
+                logger.warning("Event loop is still running after timeout")
         
-        # Close the loop
-        assistant_loop.close()
+        # Shutdown the Meross controller
+        await shutdown_meross()
+        
+        # Properly shut down all loggers
+        shutdown_logging()
+        
+        logger.info("Assistant stopped successfully")
     except Exception as e:
         logger.error(f"Error stopping assistant: {e}")
-    finally:
-        assistant_loop = None
-        assistant_task = None
 
 # Helper function to shut down Meross controller
 async def shutdown_meross():
+    """Safely shut down the Meross controller."""
     try:
-        # Get the meross_controller from the current context if it exists
-        frame = sys._current_frames()[asyncio.get_event_loop()._thread_id]
-        while frame:
-            if 'meross_controller' in frame.f_locals:
-                controller = frame.f_locals['meross_controller']
-                logger.info("Shutting down Meross controller during application stop...")
-                await controller.shutdown()
-                break
-            frame = frame.f_back
+        # Import here to avoid circular imports
+        from meross_control import MerossController
+        
+        # Get the singleton instance and close it
+        controller = MerossController.get_instance()
+        if controller:
+            logger.debug("Shutting down Meross controller...")
+            await controller.close()
+            logger.debug("Meross controller shut down successfully")
     except Exception as e:
-        logger.error(f"Error in shutdown_meross: {e}")
-
+        logger.error(f"Error shutting down Meross controller: {e}")
+    
 # Function to create system tray icon
 def create_system_tray():
     image = Image.open('icon.png')
@@ -640,6 +612,23 @@ def create_system_tray():
     )
     icon = pystray.Icon('Marvin', image, 'Marvin Voice Assistant', menu)
     icon.run()
+
+def start_assistant():
+    global assistant_loop, assistant_task
+    
+    if assistant_loop is not None:
+        logger.info('Assistant is already running')
+        return
+    
+    # Start the system tray in a separate thread
+    tray_thread = threading.Thread(target=create_system_tray, daemon=True)
+    tray_thread.start()
+    
+    logger.info('Starting assistant...')
+    assistant_loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(assistant_loop)
+    assistant_task = assistant_loop.create_task(async_main())
+    assistant_loop.run_until_complete(assistant_task)
 
 def main():
     # Create a thread for the assistant

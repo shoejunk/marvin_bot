@@ -7,3 +7,6 @@ conversation_history.json
 marvin.log
 marvin_debug.log
 artifacts/
+# Log files
+logs/
+*.log

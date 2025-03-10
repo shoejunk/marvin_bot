@@ -1,13 +1,17 @@
 from datetime import datetime, timedelta
-import logging
 import tkinter as tk
 from display_gui import DisplayGUI
+from logger_config import get_logger
+
+# Get a logger for this module
+logger = get_logger(__name__)
 
 class Display:
     def __init__(self):
         self.gui = DisplayGUI()
         self.conversation = []
         self.timers = {}
+        logger.debug("Display initialized")
         
     def add_conversation(self, message, speaker=None):
         """
@@ -30,6 +34,8 @@ class Display:
         # Use after method for thread-safe updates
         if hasattr(self.gui, 'root') and self.gui.root:
             self.gui.root.after(0, self._update_conversation, formatted_message)
+        else:
+            logger.warning("GUI not available for conversation update")
     
     def _update_conversation(self, message):
         self.gui.conversation_text.insert(tk.END, f'{message}\n')
@@ -85,4 +91,4 @@ class Display:
                 self.gui.root.deiconify()  # Make the window visible if it was iconified
                 self.gui.root.lift()  # Bring window to front
             except RuntimeError as e:
-                logging.error(f"Error showing window: {e}")
+                logger.error(f"Error showing window: {e}")

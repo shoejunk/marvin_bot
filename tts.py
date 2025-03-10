@@ -3,18 +3,19 @@ from pydub.playback import play
 import os
 import edge_tts
 import asyncio
-import logging
 import tempfile
 import time
 import aiohttp
+# Import the new logger configuration
+from logger_config import get_logger
 
-# Configure logging to use the unified marvin.log approach
-logger = logging.getLogger(__name__)
+# Configure logging using the new thread-specific logger
+logger = get_logger(__name__)
 
 default_voice = "en-GB-RyanNeural"
 fallback_voice = "en-US-ChristopherNeural"  # Fallback voice if primary fails
 
-async def speak_text(text: str, voice=default_voice, gain_db=8, max_retries=2):
+async def speak_text(text: str, voice=default_voice, gain_db=5, max_retries=2):
     """
     Convert text to speech and play it with volume adjustment.
     Includes error handling and retry logic for Edge TTS service issues.

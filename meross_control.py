@@ -7,15 +7,27 @@ and offering action functions for turning lights on or off.
 
 import os
 import asyncio
-import logging
+from logger_config import get_logger
 from meross_iot.http_api import MerossHttpClient
 from meross_iot.manager import MerossManager
 
+# Get a logger for this module
+logger = get_logger(__name__)
+
 class MerossController:
+    _instance = None
+    
     def __init__(self, http_api_client, manager, devices):
         self.http_api_client = http_api_client
         self.manager = manager
         self.devices = devices
+        # Store the instance for singleton access
+        MerossController._instance = self
+
+    @classmethod
+    def get_instance(cls):
+        """Get the singleton instance of the controller."""
+        return cls._instance
 
     @classmethod
     async def init(cls):
@@ -34,29 +46,48 @@ class MerossController:
         await manager.async_device_discovery()
         devices = manager.find_devices()
         if not devices:
-            logging.warning("No devices found...")
+            logger.warning("No devices found...")
         else:
-            logging.info("Discovered devices: %s", [dev.name for dev in devices])
+            logger.info("Discovered devices: %s", [dev.name for dev in devices])
         return cls(http_api_client, manager, devices)
 
     async def turn_on_light(self):
         if not self.devices:
-            logging.warning("No devices available to turn on.")
+            logger.warning("No devices available to turn on.")
             return
         for dev in self.devices:
             await dev.async_update()
-            logging.info("Turning on %s...", dev.name)
+            logger.info("Turning on %s...", dev.name)
             await dev.async_turn_on(channel=0)
 
     async def turn_off_light(self):
         if not self.devices:
-            logging.warning("No devices available to turn off.")
+            logger.warning("No devices available to turn off.")
             return
         for dev in self.devices:
             await dev.async_update()
-            logging.info("Turning off %s...", dev.name)
+            logger.info("Turning off %s...", dev.name)
             await dev.async_turn_off(channel=0)
 
+    async def close(self):
+        """Properly close the manager and client connections."""
+        logger.debug("Closing Meross manager and connections...")
+        try:
+            if self.manager:
+                await self.manager.async_close()
+                logger.debug("Meross manager closed successfully")
+            
+            if self.http_api_client:
+                await self.http_api_client.async_logout()
+                logger.debug("Meross HTTP client logged out successfully")
+            
+            # Clear the singleton instance
+            MerossController._instance = None
+        except Exception as e:
+            logger.error(f"Error closing Meross connections: {e}")
+        
+    # Keep the old method name for backward compatibility
     async def shutdown(self):
-        self.manager.close()
-        await self.http_api_client.async_logout()
+        """Legacy method, use close() instead."""
+        logger.warning("shutdown() is deprecated, use close() instead")
+        await self.close()
