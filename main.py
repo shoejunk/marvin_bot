@@ -10,6 +10,7 @@ os.environ['PATH'] += os.pathsep + os.path.join(os.path.dirname(__file__), 'bin'
 import re
 import asyncio
 import sys
+import logging
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import subprocess
 from speech import transcribe_speech_to_text
