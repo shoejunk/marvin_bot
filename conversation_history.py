@@ -2,6 +2,8 @@
 import json
 import os
 from logger_config import get_logger
+from settings_manager import get_active_personality
+from personalities import get_personality
 
 # Get a logger for this module
 logger = get_logger(__name__)
@@ -32,7 +34,18 @@ def save_history(history):
 
 def update_history(user_input, assistant_response):
     history = load_history()
-    history.append({"user": user_input, "assistant": assistant_response})
+    
+    # Get the active personality
+    active_personality = get_active_personality()
+    personality = get_personality(active_personality)
+    
+    # Store the conversation with the personality name
+    history.append({
+        "user": user_input, 
+        "assistant": assistant_response,
+        "personality": personality.name
+    })
+    
     # Keep only the last MAX_TURNS turns.
     if len(history) > MAX_TURNS:
         history = history[-MAX_TURNS:]

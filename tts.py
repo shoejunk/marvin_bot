@@ -8,24 +8,34 @@ import time
 import aiohttp
 # Import the new logger configuration
 from logger_config import get_logger
+from personalities import get_personality
 
 # Configure logging using the new thread-specific logger
 logger = get_logger(__name__)
 
+# Default voice settings (will be overridden by personality settings)
 default_voice = "en-GB-RyanNeural"
 fallback_voice = "en-US-ChristopherNeural"  # Fallback voice if primary fails
 
-async def speak_text(text: str, voice=default_voice, gain_db=5, max_retries=2):
+async def speak_text(text: str, voice=None, personality_name=None, gain_db=5, max_retries=2):
     """
     Convert text to speech and play it with volume adjustment.
     Includes error handling and retry logic for Edge TTS service issues.
     
     Args:
         text: The text to convert to speech
-        voice: The voice to use (defaults to en-GB-RyanNeural)
+        voice: The voice to use (overrides personality voice if provided)
+        personality_name: Name of the personality to use for voice selection
         gain_db: Volume adjustment in decibels
         max_retries: Maximum number of retry attempts for TTS service
     """
+    # Determine which voice to use
+    if voice is None:
+        # Get voice from personality if specified
+        personality = get_personality(personality_name)
+        voice = personality.voice
+        logger.debug(f"Using voice '{voice}' from personality '{personality.name}'")
+    
     # Create a unique temporary file for each TTS request
     with tempfile.NamedTemporaryFile(suffix='.mp3', delete=False) as temp_file:
         tts_file = temp_file.name
@@ -68,7 +78,7 @@ async def speak_text(text: str, voice=default_voice, gain_db=5, max_retries=2):
         # If we couldn't generate speech after all retries, use a fallback message
         if not success:
             logger.warning("All TTS attempts failed, using text output only")
-            print(f"Marvin says: {text}")
+            print(f"Assistant says: {text}")
             return
         
         # Load and play the audio file if we successfully generated it
@@ -87,7 +97,7 @@ async def speak_text(text: str, voice=default_voice, gain_db=5, max_retries=2):
         except Exception as e:
             logger.error(f"Error playing audio: {e}")
             # Still show the text as fallback
-            print(f"Marvin says: {text}")
+            print(f"Assistant says: {text}")
             
     finally:
         # Always try to clean up the file, but don't crash if we can't

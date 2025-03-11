@@ -10,6 +10,8 @@ from typing import Optional, List, Tuple
 
 # Import the logger configuration
 from logger_config import get_logger
+from settings_manager import get_active_personality
+from personalities import get_personality
 
 # Get a logger for this module
 logger = get_logger(__name__)
@@ -29,13 +31,32 @@ class VoiceProcessor:
         self.update_history = update_history_function
         self.wake_word_required = True
         
-        # Define wake words
-        self.wake_words = [
-            "marvin", "hey marvin", "ok marvin", "okay marvin", "hi marvin",
-            "martin", "hey martin", "ok martin", "okay martin", "hi martin",
+        # Define wake words - will be dynamically updated based on active personality
+        self.update_wake_words()
+        
+    def update_wake_words(self):
+        """Update wake words based on the active personality."""
+        # Get the active personality
+        active_personality = get_active_personality()
+        personality = get_personality(active_personality)
+        
+        # Base wake words that work for any personality
+        base_wake_words = [
             "computer", "hey computer", "ok computer", "okay computer", "hi computer",
             "PC", "hey PC", "ok PC", "okay PC", "hi PC"
         ]
+        
+        # Add personality-specific wake words
+        personality_name = personality.name.lower()
+        personality_wake_words = [
+            f"{personality_name}", f"hey {personality_name}", f"ok {personality_name}", 
+            f"okay {personality_name}", f"hi {personality_name}"
+        ]
+        
+        # Combine all wake words
+        self.wake_words = base_wake_words + personality_wake_words
+        
+        logger.debug(f"Updated wake words for {personality.name}: {self.wake_words}")
         
     def set_wake_word_required(self, required: bool):
         """Set whether wake word is required."""
@@ -56,6 +77,9 @@ class VoiceProcessor:
             - wake_word_detected: Whether a wake word was detected
         """
         try:
+            # Update wake words based on current personality
+            self.update_wake_words()
+            
             # Get user input from speech transcription
             user_input = await self.transcribe()
             
@@ -112,7 +136,7 @@ class VoiceProcessor:
             
             # Update conversation history with the current turn
             self.display.add_conversation(user_input, speaker='user')
-            self.display.add_conversation(text_to_speak, speaker='marvin')
+            self.display.add_conversation(text_to_speak, speaker='assistant')
             
             # Update the conversation history
             self.update_history(user_input, ai_response)
@@ -121,9 +145,9 @@ class VoiceProcessor:
             
         except json.JSONDecodeError:
             logger.error("Failed to parse response as JSON")
-            self.display.add_conversation("Error: Failed to parse response as JSON", speaker='marvin')
+            self.display.add_conversation("Error: Failed to parse response as JSON", speaker='assistant')
             return "I encountered an error processing your request."
         except Exception as e:
             logger.error(f"Error processing response: {e}")
-            self.display.add_conversation(f"Error: {str(e)}", speaker='marvin')
+            self.display.add_conversation(f"Error: {str(e)}", speaker='assistant')
             return "I encountered an error processing your request."

@@ -9,5 +9,5 @@ action_strings = [
     'edit_file', 'append_to_file', 'create_directory', 
     'move_file', 'copy_file', 'search_files', 'get_time',
     'dictate', 'write_code', 'browse_internet', 'wake_word_off', 'wake_word_on',
-    'play_music', 'next_track', 'previous_track', 'adjust_volume'
+    'play_music', 'next_track', 'previous_track', 'adjust_volume', 'change_personality'
 ]

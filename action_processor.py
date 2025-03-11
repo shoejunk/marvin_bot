@@ -15,6 +15,8 @@ from datetime import timedelta
 
 # Import the logger configuration
 from logger_config import get_logger
+from personalities import get_personality
+from settings_manager import get_active_personality
 
 # Get a logger for this module
 logger = get_logger(__name__)
@@ -75,7 +77,10 @@ class ActionProcessor:
             actions: List of action dictionaries with name and parameters
             update_setting_function: Function to update persistent settings (optional)
         """
-        for action_item in actions:
+        # Skip any change_personality actions as they are handled in main.py
+        filtered_actions = [action for action in actions if action.get("name", "").lower() != "change_personality"]
+        
+        for action_item in filtered_actions:
             action_name = action_item.get("name", "").lower()
             params = action_item.get("parameters", [])
             
@@ -408,7 +413,11 @@ class ActionProcessor:
             
         query = params[0] if params else None
         if query:
-            self.display.add_conversation(f"Browsing the internet for: {query}", speaker='marvin')
+            # Get the active personality name
+            active_personality = get_active_personality()
+            personality = get_personality(active_personality)
+            
+            self.display.add_conversation(f"Browsing the internet for: {query}", speaker='assistant')
             self.update_history(f"Browsing the internet for: {query}", "")
             try:
                 # Set up a custom log handler to capture the browser_use agent's output
@@ -454,7 +463,7 @@ class ActionProcessor:
                     # Send the result to the LLM for summarization
                     from llm import get_ai_response
                     summarization_prompt = f"Below are the results from a web search. Please provide a concise summary of these results, while preserving the key information:\n\n{result_text}"
-                    summary_response = get_ai_response(summarization_prompt)
+                    summary_response = get_ai_response(summarization_prompt, active_personality)
                     
                     try:
                         # Parse the JSON response for the summary
@@ -462,33 +471,33 @@ class ActionProcessor:
                         summary_text = summary_data.get("response", "")
                         
                         # Display the full results in the UI
-                        self.display.add_conversation(result_text, speaker='marvin')
+                        self.display.add_conversation(result_text, speaker='assistant')
                         
                         # Update history with full results
                         self.update_history(result_text, "")
                         
                         # Speak the summarized version
-                        await self.speak(summary_text)
+                        await self.speak(summary_text, personality_name=active_personality)
                     except json.JSONDecodeError:
                         # Fallback if JSON parsing fails
                         logger.error("Failed to parse summary response as JSON")
-                        self.display.add_conversation(result_text, speaker='marvin')
+                        self.display.add_conversation(result_text, speaker='assistant')
                         self.update_history(result_text, "")
-                        await self.speak("I found some information, but couldn't properly format it.")
+                        await self.speak("I found some information, but couldn't properly format it.", personality_name=active_personality)
                 else:
                     # Default message if we couldn't capture a result
-                    self.display.add_conversation("Browser search complete, but couldn't extract specific results.", speaker='marvin')
+                    self.display.add_conversation("Browser search complete, but couldn't extract specific results.", speaker='assistant')
                     self.update_history("Browser search complete, but couldn't extract specific results.", "")
-                    await self.speak("Browser search complete, but I couldn't extract specific results.")
+                    await self.speak("Browser search complete, but I couldn't extract specific results.", personality_name=active_personality)
             except Exception as e:
                 error_message = f"Error during browser search: {e}"
                 logger.error(error_message)
-                self.display.add_conversation(f"❌ {error_message}", speaker='marvin')
+                self.display.add_conversation(f"❌ {error_message}", speaker='assistant')
                 self.update_history(f"❌ {error_message}", "")
-                await self.speak("I encountered an error while browsing the internet.")
+                await self.speak("I encountered an error while browsing the internet.", personality_name=active_personality)
         else:
-            await self.speak("No search query specified for browsing the internet.")
-            self.display.add_conversation("No search query specified for browsing the internet.", speaker='marvin')
+            await self.speak("No search query specified for browsing the internet.", personality_name=active_personality)
+            self.display.add_conversation("No search query specified for browsing the internet.", speaker='assistant')
             self.update_history("No search query specified for browsing the internet.", "")
 
     # Timer functions
@@ -593,27 +602,26 @@ class ActionProcessor:
     async def _handle_get_time(self):
         """Get the current time and speak it to the user."""
         try:
+            # Get the active personality name
+            active_personality = get_active_personality()
+            
             # Get current time
-            current_time = datetime.datetime.now()
-            
-            # Format time to show hour, minute, and AM/PM
-            formatted_time = current_time.strftime("%I:%M %p")
-            
-            # Remove leading zero from hour if present
-            if formatted_time.startswith('0'):
-                formatted_time = formatted_time[1:]
-                
-            time_message = f"The current time is {formatted_time}"
-            logger.info(f"Getting time: {time_message}")
+            now = datetime.datetime.now()
+            time_str = now.strftime("%I:%M %p")
+            date_str = now.strftime("%A, %B %d, %Y")
+            time_message = f"The current time is {time_str} on {date_str}."
             
             # Display and speak the time
-            self.display.add_conversation(time_message, speaker='marvin')
+            self.display.add_conversation(time_message, speaker='assistant')
+            
+            # Update history with full results
             self.update_history(time_message, "")
-            await self.speak(time_message)
+            
+            # Speak the time
+            await self.speak(time_message, personality_name=active_personality)
             
         except Exception as e:
-            error_message = f"Error getting current time: {e}"
+            error_message = f"Error getting time: {e}"
             logger.error(error_message)
-            self.display.add_conversation(f"❌ {error_message}", speaker='marvin')
+            self.display.add_conversation(f"❌ {error_message}", speaker='assistant')
             self.update_history(f"❌ {error_message}", "")
-            await self.speak("I encountered an error while getting the current time.")

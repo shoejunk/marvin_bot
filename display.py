@@ -2,6 +2,8 @@ from datetime import datetime, timedelta
 import tkinter as tk
 from display_gui import DisplayGUI
 from logger_config import get_logger
+from settings_manager import get_active_personality
+from personalities import get_personality
 
 # Get a logger for this module
 logger = get_logger(__name__)
@@ -19,12 +21,15 @@ class Display:
         
         Args:
             message: The message text
-            speaker: Who is speaking - 'user', 'marvin', or None for actions/system messages
+            speaker: Who is speaking - 'user', 'assistant', or None for actions/system messages
         """
         if speaker == 'user':
             formatted_message = f"User: {message}"
-        elif speaker == 'marvin':
-            formatted_message = f"Marvin: {message}"
+        elif speaker == 'assistant' or speaker == 'marvin':
+            # Get the active personality name
+            active_personality = get_active_personality()
+            personality = get_personality(active_personality)
+            formatted_message = f"{personality.name}: {message}"
         else:
             # For actions or system messages
             formatted_message = message

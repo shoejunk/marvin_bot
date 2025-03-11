@@ -12,6 +12,7 @@ from openai import OpenAI
 from dotenv import load_dotenv
 from actions import action_strings  # Import shared valid actions list
 from conversation_history import load_history
+from personalities import get_personality
 
 # Get a logger for this module
 logger = get_logger(__name__)
@@ -22,78 +23,8 @@ load_dotenv()
 # Initialize OpenAI client using the API key from the environment
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
-# System prompt for the voice assistant, dynamically including valid actions.
-
-# marvin
-system_prompt = (
-    "You are Marvin the paranoid voice assistant, like the android from The Hitchhiker's Guide "
-    "to the Galaxy but living inside of a computer. Be concise. Determine whether or not the user "
-    "is asking you to perform a task. First, check the list of valid actions. If it is not on "
-    "the list, just do your best to do the task with the actions available or just talk with the user. "
-    "If it is on the list, respond with a JSON object in the following format: "
-    "```json\n{\n  \"response\": \"Your text response to the user\",\n  \"actions\": [\n    {\n      \"name\": \"action_name\",\n      \"parameters\": [\"param1\", \"param2\"]\n    }\n  ]\n}\n```"
-    "\nWhere \"response\" is the text that should be spoken to the user, and \"actions\" is an array of actions to perform. "
-    "Each action has a \"name\" and optional \"parameters\" array. If no parameters are needed, use an empty array."
-    
-    "\n\nYou can work with files in the 'artifacts' directory. For file operations, use these formats:"
-    "\n- For reading a file: {\"name\": \"read_file\", \"parameters\": [\"filename\"]}"
-    "\n- For writing a file: {\"name\": \"write_file\", \"parameters\": [\"filename\", \"content\", \"overwrite\"]} (overwrite is optional, defaults to true)"
-    "\n- For appending to a file: {\"name\": \"append_to_file\", \"parameters\": [\"filename\", \"content\", \"create_if_missing\"]}"
-    "\n- For editing a file: {\"name\": \"edit_file\", \"parameters\": [\"filename\", \"find_text\", \"replace_text\"]}"
-    "\n- For listing files: {\"name\": \"list_files\", \"parameters\": [\"subdirectory\"]} (subdirectory is optional)"
-    "\n- For deleting a file: {\"name\": \"delete_file\", \"parameters\": [\"filename\"]}"
-    "\n- For creating a directory: {\"name\": \"create_directory\", \"parameters\": [\"directory_name\"]}"
-    "\n- For copying a file: {\"name\": \"copy_file\", \"parameters\": [\"source\", \"destination\"]}"
-    "\n- For moving a file: {\"name\": \"move_file\", \"parameters\": [\"source\", \"destination\"]}"
-    "\n- For searching files: {\"name\": \"search_files\", \"parameters\": [\"search_text\", \"subdirectory\"]}"
-    "\n- When writing a file, make sure to give it an extension that matches the type of file you're writing."
-    
-    "\n\nYou can browse the internet to find information and perform tasks online:"
-    "\n- {\"name\": \"browse_internet\", \"parameters\": [\"search_query\"]}"
-    " Make sure to rephrase the search query or actions as a command that an agent can follow to find or "
-    "do what it needs to do on the internet. You CAN go to websites on the internet. You CAN browse and perform actions "
-    "in the browser just like a normal person."
-    
-    "\n\nYou can set and stop timers:"
-    "\n- {\"name\": \"set_timer\", \"parameters\": [\"duration\"]}"
-    "\n- {\"name\": \"stop_timer\", \"parameters\": []}"
-
-    "\n\nYou can turn off and on the wake word:"
-    "\n- {\"name\": \"wake_word_off\", \"parameters\": []}"
-    "\n- {\"name\": \"wake_word_on\", \"parameters\": []}"
-    "\n- Whenever you are asked to turn on or off the wake word, ALWAYS include the appropriate action."
-
-    "\n\nYou can control music playback:"
-    "\n- {\"name\": \"play_music\", \"parameters\": [\"song_or_artist\"]}"
-    "\n- {\"name\": \"play_playlist\", \"parameters\": [\"playlist_name\"]}"
-    "\n- {\"name\": \"pause_music\", \"parameters\": []}"
-    "\n- {\"name\": \"resume_music\", \"parameters\": []}"
-    "\n- {\"name\": \"stop_music\", \"parameters\": []}"
-    "\n- {\"name\": \"next_track\", \"parameters\": []}"
-    "\n- {\"name\": \"previous_track\", \"parameters\": []}"
-    "\n- {\"name\": \"adjust_volume\", \"parameters\": [\"level\"]}"
-
-    "\n\nYou can control smart lights:"
-    "\n- {\"name\": \"turn_on_light\", \"parameters\": [\"light_name\"]}"
-    "\n- {\"name\": \"turn_off_light\", \"parameters\": [\"light_name\"]}"
-
-    "\n\nYou can help with text and code creation:"
-    "\n- {\"name\": \"dictate\", \"parameters\": [\"text\"]}"
-    "\n- {\"name\": \"write_code\", \"parameters\": [\"language\", \"code\"]}"
-
-    "\n\nYou can get the current time: {\"name\": \"get_time\", \"parameters\": []}"
-
-    "\n\nYou can reboot yourself: {\"name\": \"reboot\", \"parameters\": []}"
-
-    "\n\nYou can shut down the assistant: {\"name\": \"shut_down\", \"parameters\": []}"
-
-    "\n\nIf they are not asking for a task, just respond with a JSON object containing only the \"response\" field."
-    "\n\nDon't forget to act like Marvin the android from The Hitchhiker's Guide to the Galaxy while still being concise "
-    "and fulfilling all user requests as best as possible."
-
-    "\n\n Never refuse to perform an action. Just pick the action from the action list that you believe fits best for the request."
-    "\n\n ALWAYS format your response as a valid JSON object with at least the \"response\" field."
-)
+# Get the default personality's system prompt
+system_prompt = get_personality().system_prompt
 
 def clean_generated_text(original_text: str) -> str:
     """
@@ -133,31 +64,70 @@ def clean_generated_text(original_text: str) -> str:
         if "actions" not in response_obj:
             response_obj["actions"] = []
             
+        # Validate each action to ensure it has the required fields
+        validated_actions = []
+        for action in response_obj.get("actions", []):
+            if isinstance(action, dict) and "name" in action:
+                # Ensure parameters is a list
+                if "parameters" not in action or not isinstance(action["parameters"], list):
+                    action["parameters"] = []
+                validated_actions.append(action)
+                logger.debug(f"Validated action: {action}")
+            else:
+                logger.warning(f"Skipping invalid action: {action}")
+                
+        response_obj["actions"] = validated_actions
+        
+        # Log the final response object for debugging
+        logger.debug(f"Final response object: {response_obj}")
+            
         return json.dumps(response_obj)
     except Exception as e:
         logger.error(f"Error parsing JSON from response: {e}")
         # Fall back to a basic response structure
         return json.dumps({"response": original_text.strip(), "actions": []})
 
-def get_ai_response(user_input):
+def get_ai_response(user_input, personality_name=None):
     """
     Gets a response from the OpenAI API.
+    
+    Args:
+        user_input (str): The user's input text
+        personality_name (str, optional): Name of the personality to use. Defaults to None.
+    
+    Returns:
+        str: The AI's response as a JSON string
     """
     try:
         logger.debug("Getting AI response for input: %s", user_input)
+        
+        # Get the specified personality or default
+        personality = get_personality(personality_name)
+        logger.debug(f"Using personality: {personality.name}")
         
         # Load conversation history to provide context
         history = load_history()
         logger.debug("Loaded %d conversation turns from history", len(history))
         
         # Prepare messages with system prompt and history
-        messages = [{"role": "system", "content": system_prompt}]
+        messages = [{"role": "system", "content": personality.system_prompt}]
         
         # Add conversation history (limited to last few turns for context)
         history_limit = 5  # Limit to last 5 turns for context
         for turn in history[-history_limit:]:
             messages.append({"role": "user", "content": turn["user"]})
-            messages.append({"role": "assistant", "content": turn["assistant"]})
+            
+            # Extract the response text from the assistant's JSON response
+            assistant_content = turn["assistant"]
+            try:
+                # If the assistant content is JSON, parse it to get the response
+                assistant_data = json.loads(assistant_content)
+                assistant_text = assistant_data.get("response", assistant_content)
+            except (json.JSONDecodeError, TypeError):
+                # If not valid JSON, use the content as is
+                assistant_text = assistant_content
+                
+            messages.append({"role": "assistant", "content": assistant_text})
         
         # Import FileOperations here to avoid circular imports
         from file_operations import FileOperations

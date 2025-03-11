@@ -7,6 +7,7 @@ import os
 import json
 import logging
 from logger_config import get_logger
+from personalities import DEFAULT_PERSONALITY
 
 # Get logger for this module
 logger = get_logger(__name__)
@@ -16,7 +17,8 @@ SETTINGS_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'settin
 
 # Default settings
 DEFAULT_SETTINGS = {
-    "wake_word_required": True
+    "wake_word_required": True,
+    "active_personality": DEFAULT_PERSONALITY
 }
 
 def load_settings():
@@ -79,3 +81,25 @@ def update_setting(key, value):
     except Exception as e:
         logger.error(f"Error updating setting {key}: {e}")
         return False
+
+def get_active_personality():
+    """
+    Get the currently active personality name from settings.
+    
+    Returns:
+        str: The name of the active personality
+    """
+    settings = load_settings()
+    return settings.get("active_personality", DEFAULT_PERSONALITY)
+
+def set_active_personality(personality_name):
+    """
+    Set the active personality and save to settings.
+    
+    Args:
+        personality_name (str): The name of the personality to set as active
+    
+    Returns:
+        bool: True if successful, False otherwise
+    """
+    return update_setting("active_personality", personality_name)
