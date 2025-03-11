@@ -652,6 +652,9 @@ class ActionProcessor:
 
     async def _handle_set_thermostat(self, params):
         if self.home_assistant:
+            # Get the active personality
+            active_personality = get_active_personality()
+            
             # First, check if we need to get the climate devices
             if len(params) >= 1 and params[0] == "entity_id":
                 # This means the LLM is using placeholder values
@@ -700,9 +703,9 @@ class ActionProcessor:
                         
                         await self.home_assistant.handle_action('set_thermostat', params_dict)
                     else:
-                        await self.speak("Could not find any climate devices in Home Assistant.")
+                        await self.speak("Could not find any climate devices in Home Assistant.", personality_name=active_personality)
                 else:
-                    await self.speak("Could not find any climate devices in Home Assistant.")
+                    await self.speak("Could not find any climate devices in Home Assistant.", personality_name=active_personality)
             else:
                 # Normal case - convert list parameters to a dictionary
                 params_dict = {}
@@ -715,22 +718,13 @@ class ActionProcessor:
                     
                 await self.home_assistant.handle_action('set_thermostat', params_dict)
         else:
-            await self.speak("Home Assistant is not configured.")
+            await self.speak("Home Assistant is not configured.", personality_name=active_personality)
             
-    def get_last_user_input(self):
-        """Get the last user input from conversation history"""
-        try:
-            from conversation_history import get_history
-            history = get_history()
-            for message in reversed(history):
-                if message.get('role') == 'user':
-                    return message.get('content', '')
-            return ''
-        except Exception:
-            return ''
-
     async def _handle_get_thermostat(self, params):
         if self.home_assistant:
+            # Get the active personality
+            active_personality = get_active_personality()
+            
             # First, check if we need to get the climate devices
             if len(params) >= 1 and params[0] == "entity_id":
                 # This means the LLM is using placeholder values
@@ -771,9 +765,9 @@ class ActionProcessor:
                         
                         await self.home_assistant.handle_action('get_thermostat', params_dict)
                     else:
-                        await self.speak("Could not find any climate devices in Home Assistant.")
+                        await self.speak("Could not find any climate devices in Home Assistant.", personality_name=active_personality)
                 else:
-                    await self.speak("Could not find any climate devices in Home Assistant.")
+                    await self.speak("Could not find any climate devices in Home Assistant.", personality_name=active_personality)
             else:
                 # Normal case - convert list parameters to a dictionary
                 params_dict = {}
@@ -782,10 +776,13 @@ class ActionProcessor:
                     
                 await self.home_assistant.handle_action('get_thermostat', params_dict)
         else:
-            await self.speak("Home Assistant is not configured.")
-
+            await self.speak("Home Assistant is not configured.", personality_name=active_personality)
+            
     async def _handle_turn_off_thermostat(self, params):
         if self.home_assistant:
+            # Get the active personality
+            active_personality = get_active_personality()
+            
             # First, check if we need to get the climate devices
             if len(params) >= 1 and params[0] == "entity_id":
                 # This means the LLM is using placeholder values
@@ -826,9 +823,9 @@ class ActionProcessor:
                         
                         await self.home_assistant.handle_action('turn_off_thermostat', params_dict)
                     else:
-                        await self.speak("Could not find any climate devices in Home Assistant.")
+                        await self.speak("Could not find any climate devices in Home Assistant.", personality_name=active_personality)
                 else:
-                    await self.speak("Could not find any climate devices in Home Assistant.")
+                    await self.speak("Could not find any climate devices in Home Assistant.", personality_name=active_personality)
             else:
                 # Normal case - convert list parameters to a dictionary
                 params_dict = {}
@@ -837,10 +834,13 @@ class ActionProcessor:
                     
                 await self.home_assistant.handle_action('turn_off_thermostat', params_dict)
         else:
-            await self.speak("Home Assistant is not configured.")
-
+            await self.speak("Home Assistant is not configured.", personality_name=active_personality)
+            
     async def _handle_set_hvac_mode(self, params):
         if self.home_assistant:
+            # Get the active personality
+            active_personality = get_active_personality()
+            
             # First, check if we need to get the climate devices
             if len(params) >= 1 and params[0] == "entity_id":
                 # This means the LLM is using placeholder values
@@ -885,9 +885,9 @@ class ActionProcessor:
                         
                         await self.home_assistant.handle_action('set_hvac_mode', params_dict)
                     else:
-                        await self.speak("Could not find any climate devices in Home Assistant.")
+                        await self.speak("Could not find any climate devices in Home Assistant.", personality_name=active_personality)
                 else:
-                    await self.speak("Could not find any climate devices in Home Assistant.")
+                    await self.speak("Could not find any climate devices in Home Assistant.", personality_name=active_personality)
             else:
                 # Normal case - convert list parameters to a dictionary
                 params_dict = {}
@@ -898,16 +898,28 @@ class ActionProcessor:
                     
                 await self.home_assistant.handle_action('set_hvac_mode', params_dict)
         else:
-            await self.speak("Home Assistant is not configured.")
-
+            await self.speak("Home Assistant is not configured.", personality_name=active_personality)
+            
     async def _handle_list_climate_devices(self):
         if self.home_assistant:
             await self.home_assistant.handle_action('list_climate_devices', {})
         else:
             await self.speak("Home Assistant is not configured.")
-
+            
     async def _handle_get_smart_devices(self):
         if self.home_assistant:
             await self.home_assistant.handle_action('get_smart_devices', {})
         else:
             await self.speak("Home Assistant is not configured.")
+
+    def get_last_user_input(self):
+        """Get the last user input from conversation history"""
+        try:
+            from conversation_history import get_history
+            history = get_history()
+            for message in reversed(history):
+                if message.get('role') == 'user':
+                    return message.get('content', '')
+            return ''
+        except Exception:
+            return ''

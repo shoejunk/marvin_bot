@@ -47,11 +47,13 @@ def get_logger(name):
         
         try:
             # Create a rotating file handler (10 MB max size, keep 3 backups)
+            # Add encoding='utf-8' to handle Unicode characters properly
             file_handler = RotatingFileHandler(
                 log_path,
                 maxBytes=10*1024*1024,  # 10 MB
                 backupCount=3,
-                delay=True  # Don't open the file until first log
+                delay=True,  # Don't open the file until first log
+                encoding='utf-8'  # Add UTF-8 encoding to handle Unicode characters
             )
             
             # Set formatter
