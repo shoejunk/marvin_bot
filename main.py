@@ -187,22 +187,33 @@ async def async_main():
                         song_name = params[0] if params else ''
                         if song_name:
                             spotify_client.play_track(song_name)
+                    elif action_name == "play_music":
+                        song_or_artist = params[0] if params else ''
+                        if song_or_artist:
+                            spotify_client.play_music(song_or_artist)
                     elif action_name == "play_playlist":
                         playlist_name = params[0] if params else ''
                         if playlist_name:
                             spotify_client.play_playlist(playlist_name)
                     elif action_name == "pause_music":
                         spotify_client.pause_music()
-                    elif action_name == "unpause_music":
-                        spotify_client.unpause_music()
+                    elif action_name == "unpause_music" or action_name == "resume_music":
+                        spotify_client.resume_music()
                     elif action_name == "stop_music":
                         spotify_client.stop_music()
+                    elif action_name == "next_track":
+                        spotify_client.next_track()
+                    elif action_name == "previous_track":
+                        spotify_client.previous_track()
                     elif action_name == "volume_up":
                         increment = int(params[0]) if params and params[0].isdigit() else 10
                         spotify_client.volume_up(increment)
                     elif action_name == "volume_down":
                         decrement = int(params[0]) if params and params[0].isdigit() else 10
                         spotify_client.volume_down(decrement)
+                    elif action_name == "adjust_volume":
+                        level = params[0] if params else '50'
+                        spotify_client.adjust_volume(level)
                     elif action_name == "reboot":
                         logger.info("Rebooting Marvin...")
                         bat_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "run_marvin.bat"))
@@ -232,17 +243,141 @@ async def async_main():
                         if filename:
                             content = file_ops.read_file(filename)
                             if content is not None:
-                                # Create a temporary file with the content to be read back
-                                temp_file = os.path.join(file_ops.artifacts_dir, "_temp_read.txt")
-                                with open(temp_file, 'w', encoding='utf-8') as f:
-                                    f.write(f"Content of file {filename}:\n{content}")
-                                # Read the content out loud with a limit
-                                preview = content[:300] + "..." if len(content) > 300 else content
-                                await speak_text(f"Content of file {filename}: {preview}")
+                                # Add file content to conversation history but don't display it
+                                update_history(f"Content of file {filename}:\n{content}", "")
+                                # Inform the user that the file has been read
+                                await speak_text(f"I've read the file {filename} and added its content to my context.")
                             else:
                                 await speak_text(f"Could not read file {filename}")
                         else:
                             await speak_text("No filename specified for reading")
+                    
+                    elif action_name == 'write_file':
+                        if len(params) >= 2:
+                            filename = params[0]
+                            content = params[1]
+                            overwrite = True if len(params) <= 2 or params[2].lower() == 'true' else False
+                            success = file_ops.write_file(filename, content, overwrite)
+                            if success:
+                                await speak_text(f"Successfully wrote to file {filename}")
+                            else:
+                                await speak_text(f"Failed to write to file {filename}")
+                        else:
+                            await speak_text("Insufficient parameters for writing a file")
+                            
+                    elif action_name == 'list_files':
+                        subdirectory = params[0] if params else ""
+                        files = file_ops.list_files(subdirectory)
+                        if files:
+                            files_str = ", ".join(files)
+                            await speak_text(f"Files in {subdirectory or 'artifacts directory'}: {files_str}")
+                            update_history(f"Files in {subdirectory or 'artifacts directory'}: {files_str}", "")
+                        else:
+                            await speak_text(f"No files found in {subdirectory or 'artifacts directory'}")
+                            update_history(f"No files found in {subdirectory or 'artifacts directory'}", "")
+                            
+                    elif action_name == 'delete_file':
+                        filename = params[0] if params else None
+                        if filename:
+                            success = file_ops.delete_file(filename)
+                            if success:
+                                await speak_text(f"Successfully deleted file {filename}")
+                            else:
+                                await speak_text(f"Failed to delete file {filename}")
+                        else:
+                            await speak_text("No filename specified for deletion")
+                            
+                    elif action_name == 'append_to_file':
+                        if len(params) >= 2:
+                            filename = params[0]
+                            content = params[1]
+                            create_if_missing = True if len(params) <= 2 or params[2].lower() == 'true' else False
+                            success = file_ops.append_to_file(filename, content, create_if_missing)
+                            if success:
+                                await speak_text(f"Successfully appended to file {filename}")
+                            else:
+                                await speak_text(f"Failed to append to file {filename}")
+                        else:
+                            await speak_text("Insufficient parameters for appending to a file")
+                            
+                    elif action_name == 'edit_file':
+                        if len(params) >= 3:
+                            filename = params[0]
+                            find_text = params[1]
+                            replace_text = params[2]
+                            success = file_ops.edit_file(filename, find_text, replace_text)
+                            if success:
+                                await speak_text(f"Successfully edited file {filename}")
+                            else:
+                                await speak_text(f"Failed to edit file {filename}")
+                        else:
+                            await speak_text("Insufficient parameters for editing a file")
+                            
+                    elif action_name == 'create_directory':
+                        directory_name = params[0] if params else None
+                        if directory_name:
+                            success = file_ops.create_directory(directory_name)
+                            if success:
+                                await speak_text(f"Successfully created directory {directory_name}")
+                            else:
+                                await speak_text(f"Failed to create directory {directory_name}")
+                        else:
+                            await speak_text("No directory name specified for creation")
+                            
+                    elif action_name == 'copy_file':
+                        if len(params) >= 2:
+                            source = params[0]
+                            destination = params[1]
+                            success = file_ops.copy_file(source, destination)
+                            if success:
+                                await speak_text(f"Successfully copied file from {source} to {destination}")
+                            else:
+                                await speak_text(f"Failed to copy file from {source} to {destination}")
+                        else:
+                            await speak_text("Insufficient parameters for copying a file")
+                            
+                    elif action_name == 'move_file':
+                        if len(params) >= 2:
+                            source = params[0]
+                            destination = params[1]
+                            success = file_ops.move_file(source, destination)
+                            if success:
+                                await speak_text(f"Successfully moved file from {source} to {destination}")
+                            else:
+                                await speak_text(f"Failed to move file from {source} to {destination}")
+                        else:
+                            await speak_text("Insufficient parameters for moving a file")
+                            
+                    elif action_name == 'search_files':
+                        if len(params) >= 1:
+                            search_text = params[0]
+                            subdirectory = params[1] if len(params) > 1 else ""
+                            results = file_ops.search_files(search_text, subdirectory)
+                            if results:
+                                results_str = ", ".join(results)
+                                await speak_text(f"Found {len(results)} files containing '{search_text}': {results_str}")
+                                update_history(f"Files containing '{search_text}': {results_str}", "")
+                            else:
+                                await speak_text(f"No files found containing '{search_text}'")
+                                update_history(f"No files found containing '{search_text}'", "")
+                        else:
+                            await speak_text("No search text specified")
+                            
+                    elif action_name == 'dictate':
+                        target_file = params[0] if params else "dictation.txt"
+                        await handle_dictate(target_file, file_ops)
+                        
+                    elif action_name == 'write_code':
+                        if len(params) >= 2:
+                            filename = params[0]
+                            code_content = params[1]
+                            success = file_ops.write_file(filename, code_content, True)
+                            if success:
+                                await speak_text(f"Successfully wrote code to file {filename}")
+                            else:
+                                await speak_text(f"Failed to write code to file {filename}")
+                        else:
+                            await speak_text("Insufficient parameters for writing code")
                     
                     # Browser use action
                     elif action_name == 'browse_internet':
@@ -326,137 +461,6 @@ async def async_main():
                             display.add_conversation("No search query specified for browsing the internet.", speaker='marvin')
                             update_history("No search query specified for browsing the internet.", "")
                             
-                    elif action_name == 'write_file':
-                        if len(params) >= 2:
-                            filename = params[0]
-                            content = params[1]
-                            overwrite = True if len(params) <= 2 or params[2].lower() == 'true' else False
-                            success = file_ops.write_file(filename, content, overwrite)
-                            if success:
-                                await speak_text(f"Successfully wrote to file {filename}")
-                            else:
-                                await speak_text(f"Failed to write to file {filename}")
-                        else:
-                            await speak_text("Insufficient parameters for writing a file")
-                            
-                    elif action_name == 'list_files':
-                        subdirectory = params[0] if params else ""
-                        files = file_ops.list_files(subdirectory)
-                        if files:
-                            file_list = ", ".join(files[:10])
-                            if len(files) > 10:
-                                file_list += f", and {len(files) - 10} more files"
-                            await speak_text(f"Found {len(files)} files: {file_list}")
-                        else:
-                            await speak_text(f"No files found in {subdirectory or 'artifacts directory'}")
-                            
-                    elif action_name == 'delete_file':
-                        filename = params[0] if params else None
-                        if filename:
-                            success = file_ops.delete_file(filename)
-                            if success:
-                                await speak_text(f"Successfully deleted file {filename}")
-                            else:
-                                await speak_text(f"Failed to delete file {filename}")
-                        else:
-                            await speak_text("No filename specified for deletion")
-                            
-                    elif action_name == 'append_to_file':
-                        if len(params) >= 2:
-                            filename = params[0]
-                            content = params[1]
-                            create_if_missing = True if len(params) <= 2 or params[2].lower() == 'true' else False
-                            success = file_ops.append_to_file(filename, content, create_if_missing)
-                            if success:
-                                await speak_text(f"Successfully appended to file {filename}")
-                            else:
-                                await speak_text(f"Failed to append to file {filename}")
-                        else:
-                            await speak_text("Insufficient parameters for appending to a file")
-                            
-                    elif action_name == 'edit_file':
-                        if len(params) >= 3:
-                            filename = params[0]
-                            find_text = params[1]
-                            replace_text = params[2]
-                            success = file_ops.edit_file(filename, find_text, replace_text)
-                            if success:
-                                await speak_text(f"Successfully edited file {filename}")
-                            else:
-                                await speak_text(f"Failed to edit file {filename}")
-                        else:
-                            await speak_text("Insufficient parameters for editing a file")
-                            
-                    elif action_name == 'create_directory':
-                        directory_name = params[0] if params else None
-                        if directory_name:
-                            success = file_ops.create_directory(directory_name)
-                            if success:
-                                await speak_text(f"Successfully created directory {directory_name}")
-                            else:
-                                await speak_text(f"Failed to create directory {directory_name}")
-                        else:
-                            await speak_text("No directory name specified for creation")
-                            
-                    elif action_name == 'copy_file':
-                        if len(params) >= 2:
-                            source = params[0]
-                            destination = params[1]
-                            success = file_ops.copy_file(source, destination)
-                            if success:
-                                await speak_text(f"Successfully copied file from {source} to {destination}")
-                            else:
-                                await speak_text(f"Failed to copy file from {source} to {destination}")
-                        else:
-                            await speak_text("Insufficient parameters for copying a file")
-                            
-                    elif action_name == 'move_file':
-                        if len(params) >= 2:
-                            source = params[0]
-                            destination = params[1]
-                            success = file_ops.move_file(source, destination)
-                            if success:
-                                await speak_text(f"Successfully moved file from {source} to {destination}")
-                            else:
-                                await speak_text(f"Failed to move file from {source} to {destination}")
-                        else:
-                            await speak_text("Insufficient parameters for moving a file")
-                            
-                    elif action_name == 'search_files':
-                        if len(params) >= 1:
-                            search_text = params[0]
-                            subdirectory = params[1] if len(params) > 1 else ""
-                            results = file_ops.search_files(search_text, subdirectory)
-                            if results:
-                                result_list = ", ".join(results[:5])
-                                if len(results) > 5:
-                                    result_list += f", and {len(results) - 5} more files"
-                                await speak_text(f"Found {len(results)} files containing '{search_text}': {result_list}")
-                            else:
-                                await speak_text(f"No files found containing '{search_text}'")
-                        else:
-                            await speak_text("No search text specified for searching files")
-                            
-                    elif action_name == 'get_time':
-                        current_time = get_time()
-                        await speak_text(f"The current time is {current_time}")
-                        
-                    elif action_name == 'dictate':
-                        target_file = params[0] if params else "dictation.txt"
-                        await handle_dictate(target_file, file_ops)
-                    
-                    elif action_name == 'write_code':
-                        if len(params) >= 2:
-                            filename = params[0]
-                            code_content = params[1]
-                            success = file_ops.write_file(filename, code_content, True)
-                            if success:
-                                await speak_text(f"Successfully wrote code to file {filename}")
-                            else:
-                                await speak_text(f"Failed to write code to file {filename}")
-                        else:
-                            await speak_text("Insufficient parameters for writing code")
-                    
                     else:
                         logger.warning(f"Unknown action: {action_name}")
                         display.add_conversation(f"Unknown action: {action_name}")

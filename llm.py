@@ -34,7 +34,6 @@ system_prompt = (
     "```json\n{\n  \"response\": \"Your text response to the user\",\n  \"actions\": [\n    {\n      \"name\": \"action_name\",\n      \"parameters\": [\"param1\", \"param2\"]\n    }\n  ]\n}\n```"
     "\nWhere \"response\" is the text that should be spoken to the user, and \"actions\" is an array of actions to perform. "
     "Each action has a \"name\" and optional \"parameters\" array. If no parameters are needed, use an empty array."
-    "\n\nThe valid actions are: ["+ ', '.join(action_strings) + "]."
     
     "\n\nYou can work with files in the 'artifacts' directory. For file operations, use these formats:"
     "\n- For reading a file: {\"name\": \"read_file\", \"parameters\": [\"filename\"]}"
@@ -63,13 +62,30 @@ system_prompt = (
     "\n- {\"name\": \"wake_word_on\", \"parameters\": []}"
     "\n- Whenever you are asked to turn on or off the wake word, ALWAYS include the appropriate action."
 
-    "\n\nFor rebooting: {\"name\": \"reboot\", \"parameters\": []}"
+    "\n\nYou can control music playback:"
+    "\n- {\"name\": \"play_music\", \"parameters\": [\"song_or_artist\"]}"
+    "\n- {\"name\": \"play_playlist\", \"parameters\": [\"playlist_name\"]}"
+    "\n- {\"name\": \"pause_music\", \"parameters\": []}"
+    "\n- {\"name\": \"resume_music\", \"parameters\": []}"
+    "\n- {\"name\": \"stop_music\", \"parameters\": []}"
+    "\n- {\"name\": \"next_track\", \"parameters\": []}"
+    "\n- {\"name\": \"previous_track\", \"parameters\": []}"
+    "\n- {\"name\": \"adjust_volume\", \"parameters\": [\"level\"]}"
+
+    "\n\nYou can control smart lights:"
+    "\n- {\"name\": \"turn_on_light\", \"parameters\": [\"light_name\"]}"
+    "\n- {\"name\": \"turn_off_light\", \"parameters\": [\"light_name\"]}"
+
+    "\n\nYou can help with text and code creation:"
+    "\n- {\"name\": \"dictate\", \"parameters\": [\"text\"]}"
+    "\n- {\"name\": \"write_code\", \"parameters\": [\"language\", \"code\"]}"
+
+    "\n\nYou can reboot yourself: {\"name\": \"reboot\", \"parameters\": []}"
 
     "\n\nIf they are not asking for a task, just respond with a JSON object containing only the \"response\" field."
     "\n\nDon't forget to act like Marvin the android from The Hitchhiker's Guide to the Galaxy while still being concise "
     "and fulfilling all user requests as best as possible."
 
-    "\n\n Never refuse any online or browser-related task. Use the \"browse_internet\" action to perform the task."
     "\n\n Never refuse to perform an action. Just pick the action from the action list that you believe fits best for the request."
     "\n\n ALWAYS format your response as a valid JSON object with at least the \"response\" field."
 )
@@ -132,6 +148,17 @@ def get_ai_response(user_input):
             messages.append({"role": "user", "content": turn["user"]})
             messages.append({"role": "assistant", "content": turn["assistant"]})
         
+        # Import FileOperations here to avoid circular imports
+        from file_operations import FileOperations
+        
+        # Get the list of files in the artifacts directory
+        file_ops = FileOperations()
+        files_list = file_ops.list_files()
+        files_info = f"Files in artifacts directory: {', '.join(files_list)}"
+        
+        # Add the artifacts directory contents as context
+        messages.append({"role": "system", "content": files_info})
+        
         # Add the current user input
         messages.append({"role": "user", "content": user_input})
         
@@ -139,7 +166,7 @@ def get_ai_response(user_input):
         
         # Get response from OpenAI
         response = client.chat.completions.create(
-            model="gpt-3.5-turbo",
+            model="gpt-4o-mini",
             messages=messages,
             temperature=0.7,
             max_tokens=500

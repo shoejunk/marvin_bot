@@ -191,3 +191,75 @@ class SpotifyClient:
         except Exception as e:
             logging.error("Unexpected error: %s", str(e))
             return False
+            
+    def play_music(self, song_or_artist):
+        """Play music by song or artist name (alias for play_track with clearer naming)"""
+        return self.play_track(song_or_artist)
+            
+    def resume_music(self):
+        """Resume playing paused music (alias for unpause_music with clearer naming)"""
+        return self.unpause_music()
+            
+    def next_track(self):
+        """Skip to the next track"""
+        try:
+            device_id = self._get_active_device()
+            if not device_id:
+                logging.warning("No active device found")
+                return False
+                
+            self.sp.next_track(device_id=device_id)
+            logging.info("Skipped to next track")
+            return True
+        except spotipy.exceptions.SpotifyException as e:
+            logging.error("Spotify API error: %s", str(e))
+            return False
+        except Exception as e:
+            logging.error("Unexpected error: %s", str(e))
+            return False
+            
+    def previous_track(self):
+        """Return to the previous track"""
+        try:
+            device_id = self._get_active_device()
+            if not device_id:
+                logging.warning("No active device found")
+                return False
+                
+            self.sp.previous_track(device_id=device_id)
+            logging.info("Returned to previous track")
+            return True
+        except spotipy.exceptions.SpotifyException as e:
+            logging.error("Spotify API error: %s", str(e))
+            return False
+        except Exception as e:
+            logging.error("Unexpected error: %s", str(e))
+            return False
+            
+    def adjust_volume(self, level):
+        """Set volume to a specific level (0-100)"""
+        try:
+            device_id = self._get_active_device()
+            if not device_id:
+                logging.warning("No active device found")
+                return False
+                
+            # Convert level to integer if it's a string
+            try:
+                volume_level = int(level)
+            except ValueError:
+                logging.error(f"Invalid volume level: {level}")
+                return False
+                
+            # Ensure volume is within valid range
+            volume_level = max(0, min(100, volume_level))
+            
+            self.sp.volume(volume_level, device_id=device_id)
+            logging.info(f"Volume set to {volume_level}%")
+            return True
+        except spotipy.exceptions.SpotifyException as e:
+            logging.error("Spotify API error: %s", str(e))
+            return False
+        except Exception as e:
+            logging.error("Unexpected error: %s", str(e))
+            return False
