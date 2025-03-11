@@ -1,0 +1,14 @@
+{
+  "active_personality": "marvin",
+  "wake_word_required": true,
+  "openai_api_key": "your_openai_api_key_here",
+  "spotify": {
+    "client_id": "your_spotify_client_id",
+    "client_secret": "your_spotify_client_secret",
+    "redirect_uri": "http://localhost:8888/callback"
+  },
+  "meross": {
+    "email": "your_meross_email",
+    "password": "your_meross_password"
+  }
+}

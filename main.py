@@ -85,6 +85,38 @@ async def async_main():
     )
     action_processor.set_wake_word_required(wake_word_required)
     
+    # Initialize Home Assistant handler if configured
+    if action_processor.home_assistant:
+        action_processor.home_assistant.set_dependencies(
+            speak_function=speak_text,
+            display=display,
+            update_history=update_history
+        )
+        
+        # Load Home Assistant devices at startup and add to LLM context
+        try:
+            # Get all climate devices
+            climate_devices = action_processor.home_assistant.controller.get_climate_devices()
+            if climate_devices:
+                climate_info = "Available climate devices in Home Assistant:\n"
+                for device in climate_devices:
+                    entity_id = device.get('entity_id', '')
+                    friendly_name = device.get('attributes', {}).get('friendly_name', entity_id)
+                    climate_info += f"- {friendly_name}: {entity_id}\n"
+                
+                # Store this information in conversation history for LLM context
+                update_history(climate_info, "")
+                logger.info(f"Loaded {len(climate_devices)} climate devices from Home Assistant")
+            
+            # Get all smart devices (optional, can be commented out if too verbose)
+            smart_devices = action_processor.home_assistant.controller.get_devices()
+            if smart_devices:
+                logger.info(f"Loaded {len(smart_devices)} smart devices from Home Assistant")
+        except Exception as e:
+            logger.error(f"Error loading Home Assistant devices: {e}")
+            
+        logger.info("Home Assistant integration initialized")
+    
     try:
         # Initialize with the active personality's name
         await speak_text(f"{personality.name} online", personality_name=active_personality)
