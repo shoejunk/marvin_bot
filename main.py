@@ -117,10 +117,6 @@ async def async_main():
                     actions, 
                     update_setting_function=update_setting
                 )
-                
-                # Check if we need to shut down
-                if result == "shutdown":
-                    break
                     
             except json.JSONDecodeError:
                 logger.error("Failed to parse response as JSON")

@@ -81,7 +81,11 @@ system_prompt = (
     "\n- {\"name\": \"dictate\", \"parameters\": [\"text\"]}"
     "\n- {\"name\": \"write_code\", \"parameters\": [\"language\", \"code\"]}"
 
+    "\n\nYou can get the current time: {\"name\": \"get_time\", \"parameters\": []}"
+
     "\n\nYou can reboot yourself: {\"name\": \"reboot\", \"parameters\": []}"
+
+    "\n\nYou can shut down the assistant: {\"name\": \"shut_down\", \"parameters\": []}"
 
     "\n\nIf they are not asking for a task, just respond with a JSON object containing only the \"response\" field."
     "\n\nDon't forget to act like Marvin the android from The Hitchhiker's Guide to the Galaxy while still being concise "

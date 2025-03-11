@@ -9,6 +9,7 @@ import logging
 import json
 import asyncio
 import subprocess
+import datetime
 from typing import List, Dict, Any, Optional
 from datetime import timedelta
 
@@ -181,8 +182,11 @@ class ActionProcessor:
                 logger.info('Shutting down Marvin...')
                 # Ensure Meross controller is properly shut down
                 await self.meross_controller.shutdown()
-                # Signal to main to stop the assistant
-                return "shutdown"
+                # Terminate the application
+                os._exit(0)
+                
+            elif action_name == 'get_time':
+                await self._handle_get_time()
                 
             # File operation actions
             elif action_name == 'read_file':
@@ -585,3 +589,31 @@ class ActionProcessor:
         for tname in active_timers:
             self.display.remove_timer(tname)
         logger.info('All timers stopped')
+        
+    async def _handle_get_time(self):
+        """Get the current time and speak it to the user."""
+        try:
+            # Get current time
+            current_time = datetime.datetime.now()
+            
+            # Format time to show hour, minute, and AM/PM
+            formatted_time = current_time.strftime("%I:%M %p")
+            
+            # Remove leading zero from hour if present
+            if formatted_time.startswith('0'):
+                formatted_time = formatted_time[1:]
+                
+            time_message = f"The current time is {formatted_time}"
+            logger.info(f"Getting time: {time_message}")
+            
+            # Display and speak the time
+            self.display.add_conversation(time_message, speaker='marvin')
+            self.update_history(time_message, "")
+            await self.speak(time_message)
+            
+        except Exception as e:
+            error_message = f"Error getting current time: {e}"
+            logger.error(error_message)
+            self.display.add_conversation(f"❌ {error_message}", speaker='marvin')
+            self.update_history(f"❌ {error_message}", "")
+            await self.speak("I encountered an error while getting the current time.")
