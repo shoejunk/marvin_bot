@@ -37,6 +37,8 @@ from browser_use.browser.context import BrowserContext
 from dotenv import load_dotenv
 # Import the new logger configuration
 from logger_config import get_logger, shutdown_logging
+# Import settings manager
+from settings_manager import load_settings, update_setting
 
 # Load environment variables from .env file
 load_dotenv()
@@ -57,9 +59,10 @@ display = Display()
 if 'timer_counter' not in globals():
     timer_counter = 0
 
-# Add global wake word state variable - default is True (wake word is required)
-wake_word_required = True
-logger.info("Wake word requirement initialized to ON")
+# Load settings from settings.json
+settings = load_settings()
+wake_word_required = settings.get("wake_word_required", True)
+logger.info(f"Loaded wake_word_required setting: {wake_word_required}")
 
 def get_time():
     import datetime
@@ -170,12 +173,16 @@ async def async_main():
                     # Handle wake word toggle actions
                     if action_name == "wake_word_off":
                         wake_word_required = False
-                        logger.info("Wake word requirement turned OFF")
+                        # Save the setting
+                        update_setting("wake_word_required", False)
+                        logger.info("Wake word requirement turned OFF and saved to settings")
                         display.add_conversation("Wake word requirement turned OFF")
                         update_history("Wake word requirement turned OFF", "")
                     elif action_name == "wake_word_on":
                         wake_word_required = True
-                        logger.info("Wake word requirement turned ON")
+                        # Save the setting
+                        update_setting("wake_word_required", True)
+                        logger.info("Wake word requirement turned ON and saved to settings")
                         display.add_conversation("Wake word requirement turned ON")
                         update_history("Wake word requirement turned ON", "")
                     # Handle existing actions
