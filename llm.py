@@ -46,6 +46,7 @@ system_prompt = (
     "\n- For copying a file: {\"name\": \"copy_file\", \"parameters\": [\"source\", \"destination\"]}"
     "\n- For moving a file: {\"name\": \"move_file\", \"parameters\": [\"source\", \"destination\"]}"
     "\n- For searching files: {\"name\": \"search_files\", \"parameters\": [\"search_text\", \"subdirectory\"]}"
+    "\n- When writing a file, make sure to give it an extension that matches the type of file you're writing."
     
     "\n\nYou can browse the internet to find information and perform tasks online:"
     "\n- {\"name\": \"browse_internet\", \"parameters\": [\"search_query\"]}"
@@ -112,6 +113,12 @@ def clean_generated_text(original_text: str) -> str:
                 # If no JSON found, wrap the text in a basic response structure
                 logger.warning("No JSON found in response, creating basic structure")
                 return json.dumps({"response": original_text.strip(), "actions": []})
+        
+        # Fix common JSON formatting issues before parsing
+        # Replace escaped quotes that break JSON parsing
+        json_str = json_str.replace('\\"', '"')
+        # Handle any double escaping that might occur
+        json_str = json_str.replace('\\\\', '\\')
         
         # Parse and validate the JSON
         response_obj = json.loads(json_str)

@@ -1,0 +1,580 @@
+#!/usr/bin/env python3
+"""
+action_processor.py - Processes actions extracted from AI responses.
+Handles execution of various actions like controlling lights, music, files, etc.
+"""
+
+import os
+import logging
+import json
+import asyncio
+import subprocess
+from typing import List, Dict, Any, Optional
+from datetime import timedelta
+
+# Import the logger configuration
+from logger_config import get_logger
+
+# Get a logger for this module
+logger = get_logger(__name__)
+
+class ActionProcessor:
+    def __init__(self, 
+                 meross_controller, 
+                 spotify_client, 
+                 file_ops, 
+                 display, 
+                 speak_function, 
+                 update_history_function,
+                 browser=None):
+        """
+        Initialize the ActionProcessor with required dependencies.
+        
+        Args:
+            meross_controller: Controller for Meross smart devices
+            spotify_client: Client for Spotify integration
+            file_ops: File operations manager
+            display: Display interface for UI updates
+            speak_function: Function to speak text responses
+            update_history_function: Function to update conversation history
+            browser: Browser instance for web browsing (optional)
+        """
+        self.meross_controller = meross_controller
+        self.spotify_client = spotify_client
+        self.file_ops = file_ops
+        self.display = display
+        self.speak = speak_function
+        self.update_history = update_history_function
+        self.browser = browser
+        self.timer_counter = 0
+        
+        # Settings management
+        self.wake_word_required = True
+        
+    def set_wake_word_required(self, required: bool):
+        """Set whether wake word is required."""
+        self.wake_word_required = required
+        
+    def get_wake_word_required(self) -> bool:
+        """Get whether wake word is required."""
+        return self.wake_word_required
+        
+    async def process_actions(self, actions: List[Dict[str, Any]], update_setting_function=None):
+        """
+        Process a list of actions from the AI response.
+        
+        Args:
+            actions: List of action dictionaries with name and parameters
+            update_setting_function: Function to update persistent settings (optional)
+        """
+        for action_item in actions:
+            action_name = action_item.get("name", "").lower()
+            params = action_item.get("parameters", [])
+            
+            # Log the action
+            if params:
+                logger.info(f"Processing action: {action_name} with params: {params}")
+                self.display.add_conversation(f"Action: {action_name} with params: {params}")
+                self.update_history(f"Action: {action_name} with params: {params}", "")
+            else:
+                logger.info(f"Processing action: {action_name}")
+                self.display.add_conversation(f"Action: {action_name}")
+                self.update_history(f"Action: {action_name}", "")
+            
+            # Handle wake word toggle actions
+            if action_name == "wake_word_off":
+                self.wake_word_required = False
+                # Save the setting if function provided
+                if update_setting_function:
+                    update_setting_function("wake_word_required", False)
+                logger.info("Wake word requirement turned OFF and saved to settings")
+                self.display.add_conversation("Wake word requirement turned OFF")
+                self.update_history("Wake word requirement turned OFF", "")
+                
+            elif action_name == "wake_word_on":
+                self.wake_word_required = True
+                # Save the setting if function provided
+                if update_setting_function:
+                    update_setting_function("wake_word_required", True)
+                logger.info("Wake word requirement turned ON and saved to settings")
+                self.display.add_conversation("Wake word requirement turned ON")
+                self.update_history("Wake word requirement turned ON", "")
+                
+            # Handle light control actions
+            elif action_name == "turn_on_light":
+                await self.meross_controller.turn_on_light()
+                
+            elif action_name == "turn_off_light":
+                await self.meross_controller.turn_off_light()
+                
+            # Handle music control actions
+            elif action_name == "play_song":
+                song_name = params[0] if params else ''
+                if song_name:
+                    self.spotify_client.play_track(song_name)
+                    
+            elif action_name == "play_music":
+                song_or_artist = params[0] if params else ''
+                if song_or_artist:
+                    self.spotify_client.play_music(song_or_artist)
+                    
+            elif action_name == "play_playlist":
+                playlist_name = params[0] if params else ''
+                if playlist_name:
+                    self.spotify_client.play_playlist(playlist_name)
+                    
+            elif action_name == "pause_music":
+                self.spotify_client.pause_music()
+                
+            elif action_name == "unpause_music" or action_name == "resume_music":
+                self.spotify_client.resume_music()
+                
+            elif action_name == "stop_music":
+                self.spotify_client.stop_music()
+                
+            elif action_name == "next_track":
+                self.spotify_client.next_track()
+                
+            elif action_name == "previous_track":
+                self.spotify_client.previous_track()
+                
+            elif action_name == "volume_up":
+                increment = int(params[0]) if params and params[0].isdigit() else 10
+                self.spotify_client.volume_up(increment)
+                
+            elif action_name == "volume_down":
+                decrement = int(params[0]) if params and params[0].isdigit() else 10
+                self.spotify_client.volume_down(decrement)
+                
+            elif action_name == "adjust_volume":
+                level = params[0] if params else '50'
+                self.spotify_client.adjust_volume(level)
+                
+            # Handle system actions
+            elif action_name == "reboot":
+                logger.info("Rebooting Marvin...")
+                bat_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "run_marvin.bat"))
+                logger.info(f"Running batch file: {bat_path}")
+                subprocess.Popen([bat_path], shell=True, creationflags=subprocess.CREATE_NEW_CONSOLE)
+                os._exit(0)
+                
+            elif action_name == 'set_timer' or action_name == 'start_timer':
+                duration = params[0] if params else ''
+                if duration:
+                    # Replace underscores with spaces if present
+                    duration = duration.replace('_', ' ')
+                    logger.info(f"Setting timer with cleaned duration: '{duration}'")
+                    asyncio.create_task(self.set_timer(duration))
+                    
+            elif action_name == 'stop_timer':
+                await self.stop_timer()
+                
+            elif action_name == 'shut_down':
+                await self.speak('Shutting down Marvin')
+                logger.info('Shutting down Marvin...')
+                # Ensure Meross controller is properly shut down
+                await self.meross_controller.shutdown()
+                # Signal to main to stop the assistant
+                return "shutdown"
+                
+            # File operation actions
+            elif action_name == 'read_file':
+                await self._handle_read_file(params)
+                
+            elif action_name == 'write_file':
+                await self._handle_write_file(params)
+                
+            elif action_name == 'list_files':
+                await self._handle_list_files(params)
+                
+            elif action_name == 'delete_file':
+                await self._handle_delete_file(params)
+                
+            elif action_name == 'append_to_file':
+                await self._handle_append_to_file(params)
+                
+            elif action_name == 'edit_file':
+                await self._handle_edit_file(params)
+                
+            elif action_name == 'create_directory':
+                await self._handle_create_directory(params)
+                
+            elif action_name == 'copy_file':
+                await self._handle_copy_file(params)
+                
+            elif action_name == 'move_file':
+                await self._handle_move_file(params)
+                
+            elif action_name == 'search_files':
+                await self._handle_search_files(params)
+                
+            elif action_name == 'dictate':
+                from dictate import handle_dictate
+                target_file = params[0] if params else "dictation.txt"
+                await handle_dictate(target_file, self.file_ops)
+                
+            elif action_name == 'write_code':
+                await self._handle_write_code(params)
+                
+            # Browser use action
+            elif action_name == 'browse_internet':
+                await self._handle_browse_internet(params)
+                
+            else:
+                logger.warning(f"Unknown action: {action_name}")
+                self.display.add_conversation(f"Unknown action: {action_name}")
+        
+        return None  # No special signal
+
+    # File operation handlers
+    async def _handle_read_file(self, params):
+        filename = params[0] if params else None
+        if filename:
+            content = self.file_ops.read_file(filename)
+            if content is not None:
+                # Add file content to conversation history but don't display it
+                self.update_history(f"Content of file {filename}:\n{content}", "")
+                # Inform the user that the file has been read
+                await self.speak(f"I've read the file {filename} and added its content to my context.")
+            else:
+                await self.speak(f"Could not read file {filename}")
+        else:
+            await self.speak("No filename specified for reading")
+    
+    async def _handle_write_file(self, params):
+        if len(params) >= 2:
+            filename = params[0]
+            content = params[1]
+            # Handle overwrite parameter which could be a boolean or string
+            if len(params) <= 2:
+                overwrite = True
+            else:
+                # Check if it's already a boolean
+                if isinstance(params[2], bool):
+                    overwrite = params[2]
+                # If it's a string, convert to boolean
+                elif isinstance(params[2], str):
+                    overwrite = params[2].lower() == 'true'
+                else:
+                    # Default to True for any other case
+                    overwrite = True
+            
+            success = self.file_ops.write_file(filename, content, overwrite)
+            if success:
+                await self.speak(f"Successfully wrote to file {filename}")
+            else:
+                await self.speak(f"Failed to write to file {filename}")
+        else:
+            await self.speak("Insufficient parameters for writing a file")
+    
+    async def _handle_list_files(self, params):
+        subdirectory = params[0] if params else ""
+        files = self.file_ops.list_files(subdirectory)
+        if files:
+            files_str = ", ".join(files)
+            await self.speak(f"Files in {subdirectory or 'artifacts directory'}: {files_str}")
+            self.update_history(f"Files in {subdirectory or 'artifacts directory'}: {files_str}", "")
+        else:
+            await self.speak(f"No files found in {subdirectory or 'artifacts directory'}")
+            self.update_history(f"No files found in {subdirectory or 'artifacts directory'}", "")
+    
+    async def _handle_delete_file(self, params):
+        filename = params[0] if params else None
+        if filename:
+            success = self.file_ops.delete_file(filename)
+            if success:
+                await self.speak(f"Successfully deleted file {filename}")
+            else:
+                await self.speak(f"Failed to delete file {filename}")
+        else:
+            await self.speak("No filename specified for deletion")
+    
+    async def _handle_append_to_file(self, params):
+        if len(params) >= 2:
+            filename = params[0]
+            content = params[1]
+            # Handle create_if_missing parameter which could be a boolean or string
+            if len(params) <= 2:
+                create_if_missing = True
+            else:
+                # Check if it's already a boolean
+                if isinstance(params[2], bool):
+                    create_if_missing = params[2]
+                # If it's a string, convert to boolean
+                elif isinstance(params[2], str):
+                    create_if_missing = params[2].lower() == 'true'
+                else:
+                    # Default to True for any other case
+                    create_if_missing = True
+                    
+            success = self.file_ops.append_to_file(filename, content, create_if_missing)
+            if success:
+                await self.speak(f"Successfully appended to file {filename}")
+            else:
+                await self.speak(f"Failed to append to file {filename}")
+        else:
+            await self.speak("Insufficient parameters for appending to a file")
+    
+    async def _handle_edit_file(self, params):
+        if len(params) >= 3:
+            filename = params[0]
+            find_text = params[1]
+            replace_text = params[2]
+            success = self.file_ops.edit_file(filename, find_text, replace_text)
+            if success:
+                await self.speak(f"Successfully edited file {filename}")
+            else:
+                await self.speak(f"Failed to edit file {filename}")
+        else:
+            await self.speak("Insufficient parameters for editing a file")
+    
+    async def _handle_create_directory(self, params):
+        directory_name = params[0] if params else None
+        if directory_name:
+            success = self.file_ops.create_directory(directory_name)
+            if success:
+                await self.speak(f"Successfully created directory {directory_name}")
+            else:
+                await self.speak(f"Failed to create directory {directory_name}")
+        else:
+            await self.speak("No directory name specified for creation")
+    
+    async def _handle_copy_file(self, params):
+        if len(params) >= 2:
+            source = params[0]
+            destination = params[1]
+            success = self.file_ops.copy_file(source, destination)
+            if success:
+                await self.speak(f"Successfully copied file from {source} to {destination}")
+            else:
+                await self.speak(f"Failed to copy file from {source} to {destination}")
+        else:
+            await self.speak("Insufficient parameters for copying a file")
+    
+    async def _handle_move_file(self, params):
+        if len(params) >= 2:
+            source = params[0]
+            destination = params[1]
+            success = self.file_ops.move_file(source, destination)
+            if success:
+                await self.speak(f"Successfully moved file from {source} to {destination}")
+            else:
+                await self.speak(f"Failed to move file from {source} to {destination}")
+        else:
+            await self.speak("Insufficient parameters for moving a file")
+    
+    async def _handle_search_files(self, params):
+        if len(params) >= 1:
+            search_text = params[0]
+            subdirectory = params[1] if len(params) > 1 else ""
+            results = self.file_ops.search_files(search_text, subdirectory)
+            if results:
+                results_str = ", ".join(results)
+                await self.speak(f"Found {len(results)} files containing '{search_text}': {results_str}")
+                self.update_history(f"Files containing '{search_text}': {results_str}", "")
+            else:
+                await self.speak(f"No files found containing '{search_text}'")
+                self.update_history(f"No files found containing '{search_text}'", "")
+        else:
+            await self.speak("No search text specified")
+    
+    async def _handle_write_code(self, params):
+        if len(params) >= 2:
+            filename = params[0]
+            code_content = params[1]
+            success = self.file_ops.write_file(filename, code_content, True)
+            if success:
+                await self.speak(f"Successfully wrote code to file {filename}")
+            else:
+                await self.speak(f"Failed to write code to file {filename}")
+        else:
+            await self.speak("Insufficient parameters for writing code")
+    
+    async def _handle_browse_internet(self, params):
+        if not self.browser:
+            await self.speak("Browser functionality is not available")
+            return
+            
+        query = params[0] if params else None
+        if query:
+            self.display.add_conversation(f"Browsing the internet for: {query}", speaker='marvin')
+            self.update_history(f"Browsing the internet for: {query}", "")
+            try:
+                # Set up a custom log handler to capture the browser_use agent's output
+                class BrowserUseLogHandler(logging.Handler):
+                    def __init__(self):
+                        super().__init__()
+                        self.result = None
+                    
+                    def emit(self, record):
+                        if record.name == 'browser_use.agent.service' and 'Result:' in record.getMessage():
+                            # Extract the result from the log message
+                            result_msg = record.getMessage()
+                            if '\U0001f4c4 Result:' in result_msg:
+                                self.result = result_msg.split('\U0001f4c4 Result:')[1].strip()
+                            elif 'Result:' in result_msg:
+                                self.result = result_msg.split('Result:')[1].strip()
+                
+                # Add the custom log handler
+                browser_log_handler = BrowserUseLogHandler()
+                browser_log_handler.setLevel(logging.INFO)
+                logging.getLogger('browser_use').addHandler(browser_log_handler)
+                
+                # Import required modules
+                from browser_use import Agent
+                from langchain_openai import ChatOpenAI
+                
+                # Create and run the browser agent
+                await self.browser.close()
+                agent = Agent(
+                    task=query,
+                    llm=ChatOpenAI(model="gpt-4o"),
+                    browser=self.browser,
+                )
+                await agent.run()
+                
+                # Remove the custom log handler
+                logging.getLogger('browser_use').removeHandler(browser_log_handler)
+                
+                # Check if we captured a result
+                if browser_log_handler.result:
+                    result_text = browser_log_handler.result
+                    
+                    # Send the result to the LLM for summarization
+                    from llm import get_ai_response
+                    summarization_prompt = f"Below are the results from a web search. Please provide a concise summary of these results, while preserving the key information:\n\n{result_text}"
+                    summary_response = get_ai_response(summarization_prompt)
+                    
+                    try:
+                        # Parse the JSON response for the summary
+                        summary_data = json.loads(summary_response)
+                        summary_text = summary_data.get("response", "")
+                        
+                        # Display the full results in the UI
+                        self.display.add_conversation(result_text, speaker='marvin')
+                        
+                        # Update history with full results
+                        self.update_history(result_text, "")
+                        
+                        # Speak the summarized version
+                        await self.speak(summary_text)
+                    except json.JSONDecodeError:
+                        # Fallback if JSON parsing fails
+                        logger.error("Failed to parse summary response as JSON")
+                        self.display.add_conversation(result_text, speaker='marvin')
+                        self.update_history(result_text, "")
+                        await self.speak("I found some information, but couldn't properly format it.")
+                else:
+                    # Default message if we couldn't capture a result
+                    self.display.add_conversation("Browser search complete, but couldn't extract specific results.", speaker='marvin')
+                    self.update_history("Browser search complete, but couldn't extract specific results.", "")
+                    await self.speak("Browser search complete, but I couldn't extract specific results.")
+            except Exception as e:
+                error_message = f"Error during browser search: {e}"
+                logger.error(error_message)
+                self.display.add_conversation(f"❌ {error_message}", speaker='marvin')
+                self.update_history(f"❌ {error_message}", "")
+                await self.speak("I encountered an error while browsing the internet.")
+        else:
+            await self.speak("No search query specified for browsing the internet.")
+            self.display.add_conversation("No search query specified for browsing the internet.", speaker='marvin')
+            self.update_history("No search query specified for browsing the internet.", "")
+
+    # Timer functions
+    async def set_timer(self, duration: str):
+        """Set a timer for the specified duration."""
+        try:
+            logger.debug(f"Setting timer with duration: '{duration}'")
+            
+            # First, check if the duration is already in the format "X unit"
+            duration_parts = duration.split()
+            logger.debug(f"Duration parts: {duration_parts}")
+            
+            if len(duration_parts) == 2:
+                # Format is already "X unit"
+                try:
+                    value = int(duration_parts[0])
+                    unit_input = duration_parts[1].lower()
+                    logger.debug(f"Parsed as two parts: value={value}, unit={unit_input}")
+                except ValueError as e:
+                    logger.error(f"Error parsing value: {e}")
+                    await self.speak('Invalid timer format. The value must be a number.')
+                    return
+            else:
+                # Try to parse the duration as a single value
+                # Check if it's just a number (assume seconds)
+                try:
+                    value = int(duration)
+                    unit_input = 'seconds'
+                    logger.debug(f"Parsed as single number: {value} {unit_input}")
+                except ValueError:
+                    # Try to extract number and unit from a string without spaces
+                    import re
+                    match = re.match(r'(\d+)(\w+)', duration)
+                    if match:
+                        try:
+                            value = int(match.group(1))
+                            unit_abbr = match.group(2).lower()
+                            unit_input = unit_abbr
+                            logger.debug(f"Parsed with regex: value={value}, unit={unit_input}")
+                        except ValueError as e:
+                            logger.error(f"Error parsing regex match: {e}")
+                            await self.speak('Invalid timer format. Use format like "5 minutes" or "5m".')
+                            return
+                    else:
+                        logger.error(f"Could not parse timer format: '{duration}'")
+                        await self.speak('Invalid timer format. Use format like "5 minutes" or "5m".')
+                        return
+            
+            # Map any unit format to a standardized format
+            unit_map = {
+                's': 'second', 'sec': 'second', 'second': 'second', 'seconds': 'second',
+                'm': 'minute', 'min': 'minute', 'minute': 'minute', 'minutes': 'minute',
+                'h': 'hour', 'hr': 'hour', 'hour': 'hour', 'hours': 'hour'
+            }
+            
+            # Try to map the input unit to a standard unit
+            if unit_input in unit_map:
+                unit = unit_map[unit_input]
+                logger.debug(f"Mapped '{unit_input}' to '{unit}'")
+            else:
+                logger.error(f"Unknown time unit: '{unit_input}'")
+                await self.speak(f'Invalid time unit: "{unit_input}". Use seconds, minutes, or hours.')
+                return
+                
+            # Check if unit is valid (should always be valid after mapping)
+            valid_units = ['second', 'minute', 'hour']
+            if unit in valid_units:
+                # Convert to seconds
+                if unit == 'minute':
+                    seconds_value = value * 60
+                elif unit == 'hour':
+                    seconds_value = value * 3600
+                else:  # seconds
+                    seconds_value = value
+                    
+                # For display purposes, use the original format
+                display_unit = unit + ('s' if value != 1 else '')
+                
+                logger.debug(f"Setting timer for {value} {display_unit} ({seconds_value} seconds)")
+                timer_name = f"timer_{self.timer_counter}"
+                self.timer_counter += 1
+                self.display.add_timer(timer_name, timedelta(seconds=seconds_value))
+                await asyncio.sleep(seconds_value)
+                self.display.remove_timer(timer_name)
+                await self.speak('Timer complete!')
+            else:
+                # This should never happen with our mapping
+                logger.error(f"Unexpected error: Unit '{unit}' not in valid_units after mapping")
+                await self.speak('Invalid time unit. Use seconds, minutes, or hours.')
+        except Exception as e:
+            logger.error(f'Error setting timer: {e}', exc_info=True)
+            await self.speak('Error setting timer.')
+
+    async def stop_timer(self):
+        """Stop all active timers."""
+        # Stop all active timers by removing each one from the display
+        active_timers = list(self.display.timers.keys())
+        for tname in active_timers:
+            self.display.remove_timer(tname)
+        logger.info('All timers stopped')
