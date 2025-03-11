@@ -136,16 +136,17 @@ async def async_main():
                                 # Only change if it's different from current
                                 if new_personality != active_personality:
                                     logger.info(f"Changing personality from {active_personality} to {new_personality}")
-                                    
+
+                                    # Add conversation to display and history
+                                    text_to_speak = voice_processor.add_to_conversation(command, reply)
+
+                                    # Speak the response with the old personality
+                                    if text_to_speak:
+                                        logger.info(f"{personality.name} says: {text_to_speak}")
+                                        await speak_text(text_to_speak, personality_name=active_personality)
+
                                     # Update the active personality
                                     if update_setting("active_personality", new_personality):
-                                        # Add conversation to display and history
-                                        text_to_speak = voice_processor.add_to_conversation(command, reply)
-
-                                        # Speak the response with the old personality
-                                        if text_to_speak:
-                                            logger.info(f"{personality.name} says: {text_to_speak}")
-                                            await speak_text(text_to_speak, personality_name=active_personality)
 
                                         # Get the new personality
                                         active_personality = new_personality

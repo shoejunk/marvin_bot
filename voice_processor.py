@@ -12,6 +12,7 @@ from typing import Optional, List, Tuple
 from logger_config import get_logger
 from settings_manager import get_active_personality
 from personalities import get_personality
+from emoji_filter import filter_for_tts
 
 # Get a logger for this module
 logger = get_logger(__name__)
@@ -141,7 +142,10 @@ class VoiceProcessor:
             # Update the conversation history
             self.update_history(user_input, ai_response)
             
-            return text_to_speak
+            # Filter out emojis for text-to-speech while preserving them in the display
+            filtered_text = filter_for_tts(text_to_speak)
+            
+            return filtered_text
             
         except json.JSONDecodeError:
             logger.error("Failed to parse response as JSON")
