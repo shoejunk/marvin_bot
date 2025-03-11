@@ -75,7 +75,8 @@ async def async_main():
         display=display,
         speak_function=speak_text,
         update_history_function=update_history,
-        browser=browser
+        browser=browser,
+        voice_processor=voice_processor
     )
     action_processor.set_wake_word_required(wake_word_required)
     

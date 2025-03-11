@@ -26,7 +26,8 @@ class ActionProcessor:
                  display, 
                  speak_function, 
                  update_history_function,
-                 browser=None):
+                 browser=None,
+                 voice_processor=None):
         """
         Initialize the ActionProcessor with required dependencies.
         
@@ -38,6 +39,7 @@ class ActionProcessor:
             speak_function: Function to speak text responses
             update_history_function: Function to update conversation history
             browser: Browser instance for web browsing (optional)
+            voice_processor: VoiceProcessor instance for coordinating wake word settings (optional)
         """
         self.meross_controller = meross_controller
         self.spotify_client = spotify_client
@@ -47,6 +49,7 @@ class ActionProcessor:
         self.update_history = update_history_function
         self.browser = browser
         self.timer_counter = 0
+        self.voice_processor = voice_processor
         
         # Settings management
         self.wake_word_required = True
@@ -54,6 +57,10 @@ class ActionProcessor:
     def set_wake_word_required(self, required: bool):
         """Set whether wake word is required."""
         self.wake_word_required = required
+        # Also update the voice processor if it's available
+        if self.voice_processor:
+            self.voice_processor.set_wake_word_required(required)
+            logger.info(f"Updated wake_word_required in VoiceProcessor to {required}")
         
     def get_wake_word_required(self) -> bool:
         """Get whether wake word is required."""
@@ -83,7 +90,7 @@ class ActionProcessor:
             
             # Handle wake word toggle actions
             if action_name == "wake_word_off":
-                self.wake_word_required = False
+                self.set_wake_word_required(False)  # Use the method to ensure voice_processor is updated
                 # Save the setting if function provided
                 if update_setting_function:
                     update_setting_function("wake_word_required", False)
@@ -92,7 +99,7 @@ class ActionProcessor:
                 self.update_history("Wake word requirement turned OFF", "")
                 
             elif action_name == "wake_word_on":
-                self.wake_word_required = True
+                self.set_wake_word_required(True)  # Use the method to ensure voice_processor is updated
                 # Save the setting if function provided
                 if update_setting_function:
                     update_setting_function("wake_word_required", True)
