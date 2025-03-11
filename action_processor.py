@@ -210,8 +210,8 @@ class ActionProcessor:
                 
             elif action_name == 'dictate':
                 from dictate import handle_dictate
-                target_file = params[0] if params else "dictation.txt"
-                await handle_dictate(target_file, self.file_ops)
+                dictate_text = params[0] if params else ""
+                handle_dictate(dictate_text)
                 
             elif action_name == 'write_code':
                 await self._handle_write_code(params)
