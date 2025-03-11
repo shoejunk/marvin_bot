@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 main.py - Main entry point for the voice assistant.
-Processes voice input, obtains AI responses, strips out <action> tags before speaking,
+Processes voice input, obtains AI responses, extracts actions from JSON response,
 and triggers actions (e.g., turning lights on/off) via the MerossController and file operations.
 """
 
@@ -131,341 +131,350 @@ async def async_main():
 
             logger.info(f"Marvin's original reply: {reply}")
 
-            # Update conversation history with the current turn.
-            display.add_conversation(user_input, speaker='user')
-            
-            # Strip out action tags for display
-            display_reply = re.sub(r'<action>.*?</action>', '', reply, flags=re.IGNORECASE)
-            display.add_conversation(display_reply, speaker='marvin')
-            
-            # Update the conversation history
-            update_history(user_input, reply)
-
-            # Remove any <action> tags from the text before speaking.
-            text_to_speak = re.sub(r'<action>.*?</action>', '', reply, flags=re.IGNORECASE)
-            text_to_speak = re.sub(r'<[^>]+>', '', text_to_speak).strip()
-
-            if text_to_speak:
-                logger.info(f"Marvin says: {text_to_speak}")
-                await speak_text(text_to_speak)
-
-            # Parse the AI reply for <action> tags to trigger actions.
-            action_tags = re.findall(r'<action>(.*?)</action>', reply, flags=re.IGNORECASE)
-            for action in action_tags:
-                normalized_action = action.lower().replace(" ", "_")
+            try:
+                # Parse the JSON response
+                response_data = json.loads(reply)
                 
-                # Extract parameters if they exist (format: action_name:param1,param2)
-                params = []
-                if ':' in normalized_action:
-                    action_parts = normalized_action.split(':', 1)
-                    action_name = action_parts[0]
-                    params_text = action_parts[1]
+                # Extract the text response to speak
+                text_to_speak = response_data.get("response", "")
+                
+                # Extract actions to perform
+                actions = response_data.get("actions", [])
+                
+                # Update conversation history with the current turn
+                display.add_conversation(user_input, speaker='user')
+                display.add_conversation(text_to_speak, speaker='marvin')
+                
+                # Update the conversation history
+                update_history(user_input, reply)
+
+                if text_to_speak:
+                    logger.info(f"Marvin says: {text_to_speak}")
+                    await speak_text(text_to_speak)
+
+                # Process each action in the actions array
+                for action_item in actions:
+                    action_name = action_item.get("name", "").lower()
+                    params = action_item.get("parameters", [])
                     
-                    # Handle comma-separated parameters
-                    if ',' in params_text:
-                        params = [param.strip() for param in params_text.split(',')]
-                    else:
-                        params = [params_text.strip()]
-                else:
-                    action_name = normalized_action
-                
-                # Log the action
-                if params:
-                    logger.info(f"Detected action: {action_name} with params: {params}")
-                    display.add_conversation(f"Action: {action_name} with params: {params}")
-                    update_history(f"Action: {action_name} with params: {params}", "")
-                else:
-                    logger.info(f"Detected action: {action_name}")
-                    display.add_conversation(f"Action: {action_name}")
-                    update_history(f"Action: {action_name}", "")
-                
-                # Handle wake word toggle actions
-                if action_name.startswith("wake_word_off"):
-                    wake_word_required = False
-                    logger.info("Wake word requirement turned OFF")
-                    display.add_conversation("Wake word requirement turned OFF")
-                    update_history("Wake word requirement turned OFF", "")
-                elif action_name.startswith("wake_word_on"):
-                    wake_word_required = True
-                    logger.info("Wake word requirement turned ON")
-                    display.add_conversation("Wake word requirement turned ON")
-                    update_history("Wake word requirement turned ON", "")
-                # Handle existing actions
-                elif action_name.startswith("turn_on_light"):
-                    await meross_controller.turn_on_light()
-                elif action_name.startswith("turn_off_light"):
-                    await meross_controller.turn_off_light()
-                elif action_name.startswith("play_song"):
-                    song_name = params[0] if params else ''
-                    if song_name:
-                        spotify_client.play_track(song_name)
-                elif action_name.startswith("play_playlist"):
-                    playlist_name = params[0] if params else ''
-                    if playlist_name:
-                        spotify_client.play_playlist(playlist_name)
-                elif action_name.startswith("pause_music"):
-                    spotify_client.pause_music()
-                elif action_name.startswith("unpause_music"):
-                    spotify_client.unpause_music()
-                elif action_name.startswith("stop_music"):
-                    spotify_client.stop_music()
-                elif action_name.startswith("volume_up"):
-                    increment = int(params[0]) if params and params[0].isdigit() else 10
-                    spotify_client.volume_up(increment)
-                elif action_name.startswith("volume_down"):
-                    decrement = int(params[0]) if params and params[0].isdigit() else 10
-                    spotify_client.volume_down(decrement)
-                elif action_name.startswith("reboot"):
-                    logger.info("Rebooting Marvin...")
-                    bat_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "run_marvin.bat"))
-                    logger.info(f"Running batch file: {bat_path}")
-                    subprocess.Popen([bat_path], shell=True, creationflags=subprocess.CREATE_NEW_CONSOLE)
-                    os._exit(0)
-                elif action_name.startswith('set_timer') or action_name.startswith('start_timer'):
-                    duration = params[0] if params else ''
-                    if duration:
-                        # Replace underscores with spaces if present
-                        duration = duration.replace('_', ' ')
-                        logger.info(f"Setting timer with cleaned duration: '{duration}'")
-                        asyncio.create_task(set_timer(duration))
-                elif action_name.startswith('stop_timer'):
-                    await stop_timer()
-                elif action_name.startswith('shut_down'):
-                    await speak_text('Shutting down Marvin')
-                    logger.info('Shutting down Marvin...')
-                    # Ensure Meross controller is properly shut down
-                    await meross_controller.shutdown()
-                    stop_assistant()
-                    os._exit(0)
-                    
-                # New file operation actions
-                elif action_name.startswith('read_file'):
-                    filename = params[0] if params else None
-                    if filename:
-                        content = file_ops.read_file(filename)
-                        if content is not None:
-                            # Create a temporary file with the content to be read back
-                            temp_file = os.path.join(file_ops.artifacts_dir, "_temp_read.txt")
-                            with open(temp_file, 'w', encoding='utf-8') as f:
-                                f.write(f"Content of file {filename}:\n{content}")
-                            # Read the content out loud with a limit
-                            preview = content[:300] + "..." if len(content) > 300 else content
-                            await speak_text(f"Content of file {filename}: {preview}")
-                        else:
-                            await speak_text(f"Could not read file {filename}")
-                    else:
-                        await speak_text("No filename specified for reading")
-                
-                # Browser use action
-                elif action_name.startswith('browse_internet'):
-                    query = params[0] if params else None
-                    if query:
-                        display.add_conversation(f"Browsing the internet for: {query}", speaker='marvin')
-                        update_history(f"Browsing the internet for: {query}", "")
-                        try:
-                            # Set up a custom log handler to capture the browser_use agent's output
-                            class BrowserUseLogHandler(logging.Handler):
-                                def __init__(self):
-                                    super().__init__()
-                                    self.result = None
-                                
-                                def emit(self, record):
-                                    if record.name == 'browser_use.agent.service' and 'Result:' in record.getMessage():
-                                        # Extract the result from the log message
-                                        result_msg = record.getMessage()
-                                        if '\U0001f4c4 Result:' in result_msg:
-                                            self.result = result_msg.split('\U0001f4c4 Result:')[1].strip()
-                                        elif 'Result:' in result_msg:
-                                            self.result = result_msg.split('Result:')[1].strip()
-                            
-                            # Add the custom log handler
-                            browser_log_handler = BrowserUseLogHandler()
-                            browser_log_handler.setLevel(logging.INFO)
-                            logging.getLogger('browser_use').addHandler(browser_log_handler)
-                            
-                            # Create and run the browser agent
-                            await browser.close()
-                            agent = Agent(
-                                task=query,
-                                llm=ChatOpenAI(model="gpt-4o"),
-                                browser=browser,
-                            )
-                            await agent.run()
-                            
-                            # Remove the custom log handler
-                            logging.getLogger('browser_use').removeHandler(browser_log_handler)
-                            
-                            # Check if we captured a result
-                            if browser_log_handler.result:
-                                result_text = browser_log_handler.result
-                                
-                                # Send the result to the LLM for summarization
-                                summarization_prompt = f"Below are the results from a web search. Please provide a concise summary of these results, while preserving the key information:\n\n{result_text}"
-                                summary = get_ai_response(summarization_prompt)
-                                
-                                # Extract just the summary text without any action tags
-                                summary_text = re.sub(r'<action>.*?</action>', '', summary).strip()
-                                
-                                # Display the full results in the UI
-                                display.add_conversation(result_text, speaker='marvin')
-                                
-                                # Update history with full results
-                                update_history(result_text, "")
-                                
-                                # Speak the summarized version
-                                await speak_text(summary_text)
-                            else:
-                                # Default message if we couldn't capture a result
-                                display.add_conversation("Browser search complete, but couldn't extract specific results.", speaker='marvin')
-                                update_history("Browser search complete, but couldn't extract specific results.", "")
-                                await speak_text("Browser search complete, but I couldn't extract specific results.")
-                        except Exception as e:
-                            error_message = f"Error during browser search: {e}"
-                            logger.error(error_message)
-                            display.add_conversation(f"❌ {error_message}", speaker='marvin')
-                            update_history(f"❌ {error_message}", "")
-                            await speak_text("I encountered an error while browsing the internet.")
-                    else:
-                        await speak_text("No search query specified for browsing the internet.")
-                        display.add_conversation("No search query specified for browsing the internet.", speaker='marvin')
-                        update_history("No search query specified for browsing the internet.", "")
-                        
-                elif action_name.startswith('write_file'):
-                    if len(params) >= 2:
-                        filename = params[0]
-                        content = params[1]
-                        overwrite = True if len(params) <= 2 or params[2].lower() == 'true' else False
-                        success = file_ops.write_file(filename, content, overwrite)
-                        if success:
-                            await speak_text(f"Successfully wrote to file {filename}")
-                        else:
-                            await speak_text(f"Failed to write to file {filename}")
-                    else:
-                        await speak_text("Insufficient parameters for writing a file")
-                        
-                elif action_name.startswith('list_files'):
-                    subdirectory = params[0] if params else ""
-                    files = file_ops.list_files(subdirectory)
-                    if files:
-                        file_list = ", ".join(files[:10])
-                        if len(files) > 10:
-                            file_list += f", and {len(files) - 10} more files"
-                        await speak_text(f"Found {len(files)} files: {file_list}")
-                    else:
-                        await speak_text(f"No files found in {'artifacts' if not subdirectory else subdirectory}")
-                        
-                elif action_name.startswith('delete_file'):
-                    filename = params[0] if params else None
-                    if filename:
-                        success = file_ops.delete_file(filename)
-                        if success:
-                            await speak_text(f"Successfully deleted file {filename}")
-                        else:
-                            await speak_text(f"Failed to delete file {filename}")
-                    else:
-                        await speak_text("No filename specified for deletion")
-                        
-                elif action_name.startswith('edit_file'):
-                    if len(params) >= 3:
-                        filename = params[0]
-                        find_text = params[1]
-                        replace_text = params[2]
-                        success = file_ops.edit_file(filename, find_text, replace_text)
-                        if success:
-                            await speak_text(f"Successfully edited file {filename}")
-                        else:
-                            await speak_text(f"Failed to edit file {filename}")
-                    else:
-                        await speak_text("Insufficient parameters for editing a file")
-                        
-                elif action_name.startswith('append_to_file'):
-                    if len(params) >= 2:
-                        filename = params[0]
-                        content = params[1]
-                        create_if_missing = True if len(params) <= 2 or params[2].lower() == 'true' else False
-                        success = file_ops.append_to_file(filename, content, create_if_missing)
-                        if success:
-                            await speak_text(f"Successfully appended to file {filename}")
-                        else:
-                            await speak_text(f"Failed to append to file {filename}")
-                    else:
-                        await speak_text("Insufficient parameters for appending to a file")
-                        
-                elif action_name.startswith('create_directory'):
-                    directory = params[0] if params else None
-                    if directory:
-                        success = file_ops.create_directory(directory)
-                        if success:
-                            await speak_text(f"Successfully created directory {directory}")
-                        else:
-                            await speak_text(f"Failed to create directory {directory}")
-                    else:
-                        await speak_text("No directory name specified for creation")
-                        
-                elif action_name.startswith('move_file'):
-                    if len(params) >= 2:
-                        source = params[0]
-                        destination = params[1]
-                        success = file_ops.move_file(source, destination)
-                        if success:
-                            await speak_text(f"Successfully moved file from {source} to {destination}")
-                        else:
-                            await speak_text(f"Failed to move file")
-                    else:
-                        await speak_text("Insufficient parameters for moving a file")
-                        
-                elif action_name.startswith('copy_file'):
-                    if len(params) >= 2:
-                        source = params[0]
-                        destination = params[1]
-                        success = file_ops.copy_file(source, destination)
-                        if success:
-                            await speak_text(f"Successfully copied file from {source} to {destination}")
-                        else:
-                            await speak_text(f"Failed to copy file")
-                    else:
-                        await speak_text("Insufficient parameters for copying a file")
-                        
-                elif action_name.startswith('search_files'):
+                    # Log the action
                     if params:
-                        search_text = params[0]
-                        subdirectory = params[1] if len(params) > 1 else ""
-                        matching_files = file_ops.search_files(search_text, subdirectory)
-                        if matching_files:
-                            file_list = ", ".join(matching_files[:5])
-                            if len(matching_files) > 5:
-                                file_list += f", and {len(matching_files) - 5} more"
-                            await speak_text(f"Found {len(matching_files)} files containing '{search_text}': {file_list}")
+                        logger.info(f"Detected action: {action_name} with params: {params}")
+                        display.add_conversation(f"Action: {action_name} with params: {params}")
+                        update_history(f"Action: {action_name} with params: {params}", "")
+                    else:
+                        logger.info(f"Detected action: {action_name}")
+                        display.add_conversation(f"Action: {action_name}")
+                        update_history(f"Action: {action_name}", "")
+                    
+                    # Handle wake word toggle actions
+                    if action_name == "wake_word_off":
+                        wake_word_required = False
+                        logger.info("Wake word requirement turned OFF")
+                        display.add_conversation("Wake word requirement turned OFF")
+                        update_history("Wake word requirement turned OFF", "")
+                    elif action_name == "wake_word_on":
+                        wake_word_required = True
+                        logger.info("Wake word requirement turned ON")
+                        display.add_conversation("Wake word requirement turned ON")
+                        update_history("Wake word requirement turned ON", "")
+                    # Handle existing actions
+                    elif action_name == "turn_on_light":
+                        await meross_controller.turn_on_light()
+                    elif action_name == "turn_off_light":
+                        await meross_controller.turn_off_light()
+                    elif action_name == "play_song":
+                        song_name = params[0] if params else ''
+                        if song_name:
+                            spotify_client.play_track(song_name)
+                    elif action_name == "play_playlist":
+                        playlist_name = params[0] if params else ''
+                        if playlist_name:
+                            spotify_client.play_playlist(playlist_name)
+                    elif action_name == "pause_music":
+                        spotify_client.pause_music()
+                    elif action_name == "unpause_music":
+                        spotify_client.unpause_music()
+                    elif action_name == "stop_music":
+                        spotify_client.stop_music()
+                    elif action_name == "volume_up":
+                        increment = int(params[0]) if params and params[0].isdigit() else 10
+                        spotify_client.volume_up(increment)
+                    elif action_name == "volume_down":
+                        decrement = int(params[0]) if params and params[0].isdigit() else 10
+                        spotify_client.volume_down(decrement)
+                    elif action_name == "reboot":
+                        logger.info("Rebooting Marvin...")
+                        bat_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "run_marvin.bat"))
+                        logger.info(f"Running batch file: {bat_path}")
+                        subprocess.Popen([bat_path], shell=True, creationflags=subprocess.CREATE_NEW_CONSOLE)
+                        os._exit(0)
+                    elif action_name == 'set_timer' or action_name == 'start_timer':
+                        duration = params[0] if params else ''
+                        if duration:
+                            # Replace underscores with spaces if present
+                            duration = duration.replace('_', ' ')
+                            logger.info(f"Setting timer with cleaned duration: '{duration}'")
+                            asyncio.create_task(set_timer(duration))
+                    elif action_name == 'stop_timer':
+                        await stop_timer()
+                    elif action_name == 'shut_down':
+                        await speak_text('Shutting down Marvin')
+                        logger.info('Shutting down Marvin...')
+                        # Ensure Meross controller is properly shut down
+                        await meross_controller.shutdown()
+                        stop_assistant()
+                        os._exit(0)
+                        
+                    # File operation actions
+                    elif action_name == 'read_file':
+                        filename = params[0] if params else None
+                        if filename:
+                            content = file_ops.read_file(filename)
+                            if content is not None:
+                                # Create a temporary file with the content to be read back
+                                temp_file = os.path.join(file_ops.artifacts_dir, "_temp_read.txt")
+                                with open(temp_file, 'w', encoding='utf-8') as f:
+                                    f.write(f"Content of file {filename}:\n{content}")
+                                # Read the content out loud with a limit
+                                preview = content[:300] + "..." if len(content) > 300 else content
+                                await speak_text(f"Content of file {filename}: {preview}")
+                            else:
+                                await speak_text(f"Could not read file {filename}")
                         else:
-                            await speak_text(f"No files containing '{search_text}' found")
-                elif action_name.startswith('get_time'):
-                    time_text = get_time()
-                    display.add_conversation(f"Marvin: {time_text}")
-                    update_history(f"Marvin: {time_text}", "")
-                    await speak_text(time_text)
-                elif action_name.startswith('dictate'):
-                    dictated_text = action[len("dictate"):].strip()
-                    handle_dictate(dictated_text)
-                elif action_name.startswith('write_code'):
-                    code = action[len('write_code'):].strip()
-                    if code:
-                        logger.info(f"Detected action: write_code with code: {code}")
-                        display.add_conversation(f"Action: write_code with code: {code}")
-                        update_history(f"Action: write_code with code: {code}", "")
-                        handle_dictate(code)
-                else:
-                    logger.warning(f"Action '{normalized_action}' not recognized in the action list.")
-                    display.add_conversation(f"Unknown action: {action_name}")
-                    update_history(f"Unknown action: {action_name}", "")
-
-        # if text_to_speak:
-        #     logging.info(f"Marvin says: {text_to_speak}")
-        #     await speak_text(text_to_speak)
-    finally:
-        # Ensure Meross controller is properly shut down even if an exception occurs
-        if 'meross_controller' in locals():
-            logger.info("Shutting down Meross controller...")
-            await meross_controller.shutdown()
+                            await speak_text("No filename specified for reading")
+                    
+                    # Browser use action
+                    elif action_name == 'browse_internet':
+                        query = params[0] if params else None
+                        if query:
+                            display.add_conversation(f"Browsing the internet for: {query}", speaker='marvin')
+                            update_history(f"Browsing the internet for: {query}", "")
+                            try:
+                                # Set up a custom log handler to capture the browser_use agent's output
+                                class BrowserUseLogHandler(logging.Handler):
+                                    def __init__(self):
+                                        super().__init__()
+                                        self.result = None
+                                    
+                                    def emit(self, record):
+                                        if record.name == 'browser_use.agent.service' and 'Result:' in record.getMessage():
+                                            # Extract the result from the log message
+                                            result_msg = record.getMessage()
+                                            if '\U0001f4c4 Result:' in result_msg:
+                                                self.result = result_msg.split('\U0001f4c4 Result:')[1].strip()
+                                            elif 'Result:' in result_msg:
+                                                self.result = result_msg.split('Result:')[1].strip()
+                                
+                                # Add the custom log handler
+                                browser_log_handler = BrowserUseLogHandler()
+                                browser_log_handler.setLevel(logging.INFO)
+                                logging.getLogger('browser_use').addHandler(browser_log_handler)
+                                
+                                # Create and run the browser agent
+                                await browser.close()
+                                agent = Agent(
+                                    task=query,
+                                    llm=ChatOpenAI(model="gpt-4o"),
+                                    browser=browser,
+                                )
+                                await agent.run()
+                                
+                                # Remove the custom log handler
+                                logging.getLogger('browser_use').removeHandler(browser_log_handler)
+                                
+                                # Check if we captured a result
+                                if browser_log_handler.result:
+                                    result_text = browser_log_handler.result
+                                    
+                                    # Send the result to the LLM for summarization
+                                    summarization_prompt = f"Below are the results from a web search. Please provide a concise summary of these results, while preserving the key information:\n\n{result_text}"
+                                    summary_response = get_ai_response(summarization_prompt)
+                                    
+                                    try:
+                                        # Parse the JSON response for the summary
+                                        summary_data = json.loads(summary_response)
+                                        summary_text = summary_data.get("response", "")
+                                        
+                                        # Display the full results in the UI
+                                        display.add_conversation(result_text, speaker='marvin')
+                                        
+                                        # Update history with full results
+                                        update_history(result_text, "")
+                                        
+                                        # Speak the summarized version
+                                        await speak_text(summary_text)
+                                    except json.JSONDecodeError:
+                                        # Fallback if JSON parsing fails
+                                        logger.error("Failed to parse summary response as JSON")
+                                        display.add_conversation(result_text, speaker='marvin')
+                                        update_history(result_text, "")
+                                        await speak_text("I found some information, but couldn't properly format it.")
+                                else:
+                                    # Default message if we couldn't capture a result
+                                    display.add_conversation("Browser search complete, but couldn't extract specific results.", speaker='marvin')
+                                    update_history("Browser search complete, but couldn't extract specific results.", "")
+                                    await speak_text("Browser search complete, but I couldn't extract specific results.")
+                            except Exception as e:
+                                error_message = f"Error during browser search: {e}"
+                                logger.error(error_message)
+                                display.add_conversation(f"❌ {error_message}", speaker='marvin')
+                                update_history(f"❌ {error_message}", "")
+                                await speak_text("I encountered an error while browsing the internet.")
+                        else:
+                            await speak_text("No search query specified for browsing the internet.")
+                            display.add_conversation("No search query specified for browsing the internet.", speaker='marvin')
+                            update_history("No search query specified for browsing the internet.", "")
+                            
+                    elif action_name == 'write_file':
+                        if len(params) >= 2:
+                            filename = params[0]
+                            content = params[1]
+                            overwrite = True if len(params) <= 2 or params[2].lower() == 'true' else False
+                            success = file_ops.write_file(filename, content, overwrite)
+                            if success:
+                                await speak_text(f"Successfully wrote to file {filename}")
+                            else:
+                                await speak_text(f"Failed to write to file {filename}")
+                        else:
+                            await speak_text("Insufficient parameters for writing a file")
+                            
+                    elif action_name == 'list_files':
+                        subdirectory = params[0] if params else ""
+                        files = file_ops.list_files(subdirectory)
+                        if files:
+                            file_list = ", ".join(files[:10])
+                            if len(files) > 10:
+                                file_list += f", and {len(files) - 10} more files"
+                            await speak_text(f"Found {len(files)} files: {file_list}")
+                        else:
+                            await speak_text(f"No files found in {subdirectory or 'artifacts directory'}")
+                            
+                    elif action_name == 'delete_file':
+                        filename = params[0] if params else None
+                        if filename:
+                            success = file_ops.delete_file(filename)
+                            if success:
+                                await speak_text(f"Successfully deleted file {filename}")
+                            else:
+                                await speak_text(f"Failed to delete file {filename}")
+                        else:
+                            await speak_text("No filename specified for deletion")
+                            
+                    elif action_name == 'append_to_file':
+                        if len(params) >= 2:
+                            filename = params[0]
+                            content = params[1]
+                            create_if_missing = True if len(params) <= 2 or params[2].lower() == 'true' else False
+                            success = file_ops.append_to_file(filename, content, create_if_missing)
+                            if success:
+                                await speak_text(f"Successfully appended to file {filename}")
+                            else:
+                                await speak_text(f"Failed to append to file {filename}")
+                        else:
+                            await speak_text("Insufficient parameters for appending to a file")
+                            
+                    elif action_name == 'edit_file':
+                        if len(params) >= 3:
+                            filename = params[0]
+                            find_text = params[1]
+                            replace_text = params[2]
+                            success = file_ops.edit_file(filename, find_text, replace_text)
+                            if success:
+                                await speak_text(f"Successfully edited file {filename}")
+                            else:
+                                await speak_text(f"Failed to edit file {filename}")
+                        else:
+                            await speak_text("Insufficient parameters for editing a file")
+                            
+                    elif action_name == 'create_directory':
+                        directory_name = params[0] if params else None
+                        if directory_name:
+                            success = file_ops.create_directory(directory_name)
+                            if success:
+                                await speak_text(f"Successfully created directory {directory_name}")
+                            else:
+                                await speak_text(f"Failed to create directory {directory_name}")
+                        else:
+                            await speak_text("No directory name specified for creation")
+                            
+                    elif action_name == 'copy_file':
+                        if len(params) >= 2:
+                            source = params[0]
+                            destination = params[1]
+                            success = file_ops.copy_file(source, destination)
+                            if success:
+                                await speak_text(f"Successfully copied file from {source} to {destination}")
+                            else:
+                                await speak_text(f"Failed to copy file from {source} to {destination}")
+                        else:
+                            await speak_text("Insufficient parameters for copying a file")
+                            
+                    elif action_name == 'move_file':
+                        if len(params) >= 2:
+                            source = params[0]
+                            destination = params[1]
+                            success = file_ops.move_file(source, destination)
+                            if success:
+                                await speak_text(f"Successfully moved file from {source} to {destination}")
+                            else:
+                                await speak_text(f"Failed to move file from {source} to {destination}")
+                        else:
+                            await speak_text("Insufficient parameters for moving a file")
+                            
+                    elif action_name == 'search_files':
+                        if len(params) >= 1:
+                            search_text = params[0]
+                            subdirectory = params[1] if len(params) > 1 else ""
+                            results = file_ops.search_files(search_text, subdirectory)
+                            if results:
+                                result_list = ", ".join(results[:5])
+                                if len(results) > 5:
+                                    result_list += f", and {len(results) - 5} more files"
+                                await speak_text(f"Found {len(results)} files containing '{search_text}': {result_list}")
+                            else:
+                                await speak_text(f"No files found containing '{search_text}'")
+                        else:
+                            await speak_text("No search text specified for searching files")
+                            
+                    elif action_name == 'get_time':
+                        current_time = get_time()
+                        await speak_text(f"The current time is {current_time}")
+                        
+                    elif action_name == 'dictate':
+                        target_file = params[0] if params else "dictation.txt"
+                        await handle_dictate(target_file, file_ops)
+                    
+                    elif action_name == 'write_code':
+                        if len(params) >= 2:
+                            filename = params[0]
+                            code_content = params[1]
+                            success = file_ops.write_file(filename, code_content, True)
+                            if success:
+                                await speak_text(f"Successfully wrote code to file {filename}")
+                            else:
+                                await speak_text(f"Failed to write code to file {filename}")
+                        else:
+                            await speak_text("Insufficient parameters for writing code")
+                    
+                    else:
+                        logger.warning(f"Unknown action: {action_name}")
+                        display.add_conversation(f"Unknown action: {action_name}")
+                
+            except json.JSONDecodeError:
+                logger.error("Failed to parse response as JSON")
+                display.add_conversation("Error: Failed to parse response as JSON", speaker='marvin')
+                await speak_text("I encountered an error processing your request.")
+            
+            except Exception as e:
+                logger.error(f"Error processing response: {e}")
+                display.add_conversation(f"Error: {str(e)}", speaker='marvin')
+                await speak_text("I encountered an error processing your request.")
+                
+    except Exception as e:
+        logger.error(f"Error in async_main: {e}")
+        await speak_text("I encountered a critical error and need to shut down.")
+        raise
 
 async def set_timer(duration: str):
     global timer_counter
