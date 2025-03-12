@@ -11,6 +11,8 @@ import logging
 from typing import Dict, Any, List, Optional
 from home_assistant import HomeAssistantController
 from dotenv import load_dotenv
+from settings_manager import get_active_personality
+from personalities import get_personality
 
 # Load environment variables
 load_dotenv()
@@ -123,7 +125,8 @@ class HomeAssistantHandler:
         if not entity_id or temperature is None:
             message = "Missing required parameters: entity_id or temperature"
             if self.speak_function:
-                await self.speak_function(message)
+                active_personality = get_active_personality()
+                await self.speak_function(message, personality_name=active_personality)
             return {"success": False, "message": message}
         
         # Convert temperature to float if it's a string
@@ -133,7 +136,8 @@ class HomeAssistantHandler:
             except ValueError:
                 message = f"Invalid temperature value: {temperature}"
                 if self.speak_function:
-                    await self.speak_function(message)
+                    active_personality = get_active_personality()
+                    await self.speak_function(message, personality_name=active_personality)
                 return {"success": False, "message": message}
         
         success = self.controller.set_thermostat_temperature(entity_id, temperature, mode)
@@ -141,7 +145,8 @@ class HomeAssistantHandler:
         if success:
             message = f"Set {entity_id} to {temperature} degrees in {mode} mode"
             if self.speak_function:
-                await self.speak_function(message)
+                active_personality = get_active_personality()
+                await self.speak_function(message, personality_name=active_personality)
             if self.display:
                 self.display.add_conversation(message, speaker='assistant')
             if self.update_history:
@@ -153,7 +158,8 @@ class HomeAssistantHandler:
         else:
             message = "Failed to set thermostat temperature"
             if self.speak_function:
-                await self.speak_function(message)
+                active_personality = get_active_personality()
+                await self.speak_function(message, personality_name=active_personality)
             return {"success": False, "message": message}
     
     async def get_thermostat(self, parameters: Dict[str, Any]) -> Dict[str, Any]:
@@ -171,7 +177,8 @@ class HomeAssistantHandler:
         if not entity_id:
             message = "Missing required parameter: entity_id"
             if self.speak_function:
-                await self.speak_function(message)
+                active_personality = get_active_personality()
+                await self.speak_function(message, personality_name=active_personality)
             return {"success": False, "message": message}
         
         state = self.controller.get_thermostat_state(entity_id)
@@ -188,7 +195,8 @@ class HomeAssistantHandler:
                      f"Current temperature is {current_temp}°F with target of {target_temp}°F."
             
             if self.speak_function:
-                await self.speak_function(message)
+                active_personality = get_active_personality()
+                await self.speak_function(message, personality_name=active_personality)
             if self.display:
                 self.display.add_conversation(message, speaker='assistant')
             if self.update_history:
@@ -208,7 +216,8 @@ class HomeAssistantHandler:
         else:
             message = f"Failed to get state for {entity_id}"
             if self.speak_function:
-                await self.speak_function(message)
+                active_personality = get_active_personality()
+                await self.speak_function(message, personality_name=active_personality)
             return {"success": False, "message": message}
     
     async def turn_off_thermostat(self, parameters: Dict[str, Any]) -> Dict[str, Any]:
@@ -226,7 +235,8 @@ class HomeAssistantHandler:
         if not entity_id:
             message = "Missing required parameter: entity_id"
             if self.speak_function:
-                await self.speak_function(message)
+                active_personality = get_active_personality()
+                await self.speak_function(message, personality_name=active_personality)
             return {"success": False, "message": message}
         
         success = self.controller.set_hvac_mode(entity_id, "off")
@@ -234,7 +244,8 @@ class HomeAssistantHandler:
         if success:
             message = f"Turned off {entity_id}"
             if self.speak_function:
-                await self.speak_function(message)
+                active_personality = get_active_personality()
+                await self.speak_function(message, personality_name=active_personality)
             if self.display:
                 self.display.add_conversation(message, speaker='assistant')
             if self.update_history:
@@ -243,7 +254,8 @@ class HomeAssistantHandler:
         else:
             message = f"Failed to turn off {entity_id}"
             if self.speak_function:
-                await self.speak_function(message)
+                active_personality = get_active_personality()
+                await self.speak_function(message, personality_name=active_personality)
             return {"success": False, "message": message}
     
     async def set_hvac_mode(self, parameters: Dict[str, Any]) -> Dict[str, Any]:
@@ -262,7 +274,8 @@ class HomeAssistantHandler:
         if not entity_id or not mode:
             message = "Missing required parameters: entity_id or mode"
             if self.speak_function:
-                await self.speak_function(message)
+                active_personality = get_active_personality()
+                await self.speak_function(message, personality_name=active_personality)
             return {"success": False, "message": message}
         
         success = self.controller.set_hvac_mode(entity_id, mode)
@@ -270,7 +283,8 @@ class HomeAssistantHandler:
         if success:
             message = f"Set {entity_id} to {mode} mode"
             if self.speak_function:
-                await self.speak_function(message)
+                active_personality = get_active_personality()
+                await self.speak_function(message, personality_name=active_personality)
             if self.display:
                 self.display.add_conversation(message, speaker='assistant')
             if self.update_history:
@@ -279,7 +293,8 @@ class HomeAssistantHandler:
         else:
             message = f"Failed to set {entity_id} to {mode} mode"
             if self.speak_function:
-                await self.speak_function(message)
+                active_personality = get_active_personality()
+                await self.speak_function(message, personality_name=active_personality)
             return {"success": False, "message": message}
     
     async def list_climate_devices(self) -> Dict[str, Any]:
@@ -314,7 +329,8 @@ class HomeAssistantHandler:
                           f"set to {device['target_temperature']}°F in {device['hvac_mode']} mode\n"
             
             if self.speak_function:
-                await self.speak_function(message)
+                active_personality = get_active_personality()
+                await self.speak_function(message, personality_name=active_personality)
             if self.display:
                 self.display.add_conversation(message, speaker='assistant')
             if self.update_history:
@@ -330,7 +346,8 @@ class HomeAssistantHandler:
         else:
             message = "No climate devices found or failed to get devices"
             if self.speak_function:
-                await self.speak_function(message)
+                active_personality = get_active_personality()
+                await self.speak_function(message, personality_name=active_personality)
             return {"success": False, "message": message}
     
     async def get_smart_devices(self) -> Dict[str, Any]:
@@ -368,7 +385,8 @@ class HomeAssistantHandler:
                     message += f"  ... and {len(domain_devices) - 5} more {domain} devices\n"
             
             if self.speak_function:
-                await self.speak_function(message)
+                active_personality = get_active_personality()
+                await self.speak_function(message, personality_name=active_personality)
             if self.display:
                 self.display.add_conversation(message, speaker='assistant')
             if self.update_history:
@@ -384,7 +402,8 @@ class HomeAssistantHandler:
         else:
             message = "No devices found or failed to get devices"
             if self.speak_function:
-                await self.speak_function(message)
+                active_personality = get_active_personality()
+                await self.speak_function(message, personality_name=active_personality)
             return {"success": False, "message": message}
             
     async def get_weather(self, parameters: Dict[str, Any]) -> Dict[str, Any]:
@@ -431,7 +450,8 @@ class HomeAssistantHandler:
                 message += f"High: {next_day.get('temperature')}°F, Low: {next_day.get('templow')}°F"
             
             if self.speak_function:
-                await self.speak_function(message)
+                active_personality = get_active_personality()
+                await self.speak_function(message, personality_name=active_personality)
             if self.display:
                 self.display.add_conversation(message, speaker='assistant')
             if self.update_history:
@@ -463,7 +483,8 @@ class HomeAssistantHandler:
                 message = f"Failed to get weather information for {entity_id}"
                 
             if self.speak_function:
-                await self.speak_function(message)
+                active_personality = get_active_personality()
+                await self.speak_function(message, personality_name=active_personality)
             return {"success": False, "message": message}
 
 
