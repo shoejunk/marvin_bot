@@ -14,7 +14,6 @@ import time
 from speech import transcribe_speech_to_text
 from tts import speak_text
 from llm import get_ai_response
-from waiting_sound import play_waiting_sound
 from meross_control import MerossController
 from conversation_history import update_history
 from spotify import SpotifyClient

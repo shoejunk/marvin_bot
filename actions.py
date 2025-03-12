@@ -11,5 +11,5 @@ action_strings = [
     'dictate', 'write_code', 'browse_internet', 'wake_word_off', 'wake_word_on',
     'play_music', 'next_track', 'previous_track', 'adjust_volume', 'change_personality',
     'set_thermostat', 'get_thermostat', 'turn_off_thermostat', 'set_hvac_mode',
-    'list_climate_devices', 'get_smart_devices'
+    'list_climate_devices', 'get_smart_devices', 'get_weather'
 ]

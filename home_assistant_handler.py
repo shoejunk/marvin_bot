@@ -101,6 +101,8 @@ class HomeAssistantHandler:
             return await self.list_climate_devices()
         elif action == "get_smart_devices":
             return await self.get_smart_devices()
+        elif action == "get_weather":
+            return await self.get_weather(parameters)
         else:
             return {"success": False, "message": f"Unknown action: {action}"}
     
@@ -381,6 +383,85 @@ class HomeAssistantHandler:
             }
         else:
             message = "No devices found or failed to get devices"
+            if self.speak_function:
+                await self.speak_function(message)
+            return {"success": False, "message": message}
+            
+    async def get_weather(self, parameters: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Handle getting weather information.
+        
+        Args:
+            parameters: May contain 'entity_id' for a specific weather entity
+            
+        Returns:
+            Dict[str, Any]: Result of the action with weather information
+        """
+        entity_id = parameters.get('entity_id')
+        
+        # Get weather information
+        weather_info = self.controller.get_weather(entity_id)
+        
+        if weather_info:
+            # Extract relevant information for a more readable response
+            attributes = weather_info.get('attributes', {})
+            state = weather_info.get('state')  # Current condition (clear, cloudy, etc.)
+            temperature = attributes.get('temperature')
+            humidity = attributes.get('humidity')
+            pressure = attributes.get('pressure')
+            wind_speed = attributes.get('wind_speed')
+            wind_bearing = attributes.get('wind_bearing')
+            forecast = attributes.get('forecast', [])
+            friendly_name = attributes.get('friendly_name', weather_info.get('entity_id'))
+            
+            # Create a readable message
+            message = f"Current weather at {friendly_name}: {state}, {temperature}°F\n"
+            message += f"Humidity: {humidity}%, Pressure: {pressure} hPa\n"
+            message += f"Wind: {wind_speed} mph"
+            if wind_bearing is not None:
+                # Convert wind bearing to cardinal direction
+                directions = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"]
+                index = round(wind_bearing / 45) % 8
+                message += f" from the {directions[index]}"
+            
+            # Add forecast if available (just next day)
+            if forecast and len(forecast) > 0:
+                next_day = forecast[0]
+                message += f"\n\nForecast for tomorrow: {next_day.get('condition')}, "
+                message += f"High: {next_day.get('temperature')}°F, Low: {next_day.get('templow')}°F"
+            
+            if self.speak_function:
+                await self.speak_function(message)
+            if self.display:
+                self.display.add_conversation(message, speaker='assistant')
+            if self.update_history:
+                self.update_history(message, "")
+                
+            return {
+                "success": True,
+                "entity_id": weather_info.get('entity_id'),
+                "state": state,
+                "temperature": temperature,
+                "humidity": humidity,
+                "pressure": pressure,
+                "wind_speed": wind_speed,
+                "wind_bearing": wind_bearing,
+                "forecast": forecast,
+                "message": message,
+                "full_weather": weather_info
+            }
+        else:
+            # If no specific entity was requested, try to list available weather entities
+            if not entity_id:
+                weather_entities = self.controller.get_weather_entities()
+                if weather_entities:
+                    entity_names = [entity.get('entity_id') for entity in weather_entities]
+                    message = f"No default weather entity found. Available weather entities: {', '.join(entity_names)}"
+                else:
+                    message = "No weather entities found in Home Assistant"
+            else:
+                message = f"Failed to get weather information for {entity_id}"
+                
             if self.speak_function:
                 await self.speak_function(message)
             return {"success": False, "message": message}

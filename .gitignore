@@ -12,3 +12,6 @@ logs/
 *.log
 test_output.txt
 settings.json
+
+# windsurf rules
+.windsurfrules

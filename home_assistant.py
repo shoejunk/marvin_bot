@@ -188,6 +188,63 @@ class HomeAssistantController:
         except Exception as e:
             logger.error(f"Failed to get thermostat state: {e}")
             return None
+            
+    def get_weather(self, entity_id: str = None) -> Optional[Dict[str, Any]]:
+        """
+        Get weather information from Home Assistant.
+        
+        Args:
+            entity_id: The entity ID of the weather entity (e.g., "weather.home")
+                       If None, will return the first weather entity found
+            
+        Returns:
+            Optional[Dict[str, Any]]: The weather information or None if not found
+        """
+        if not self.connected or not self.client:
+            logger.error("Not connected to Home Assistant")
+            return None
+        
+        try:
+            # Get all states
+            states = self.client.get_states()
+            
+            # If entity_id is provided, find that specific entity
+            if entity_id:
+                for state in states:
+                    if state.entity_id == entity_id:
+                        return state.dict()
+                logger.error(f"Weather entity {entity_id} not found in states")
+                return None
+            
+            # Otherwise, find the first weather entity
+            for state in states:
+                if state.entity_id.startswith("weather."):
+                    return state.dict()
+            
+            logger.error("No weather entities found in states")
+            return None
+        except Exception as e:
+            logger.error(f"Failed to get weather information: {e}")
+            return None
+    
+    def get_weather_entities(self) -> List[Dict[str, Any]]:
+        """
+        Get a list of all weather entities from Home Assistant.
+        
+        Returns:
+            List[Dict[str, Any]]: List of weather entity information
+        """
+        if not self.connected or not self.client:
+            logger.error("Not connected to Home Assistant")
+            return []
+        
+        try:
+            states = self.client.get_states()
+            weather_entities = [state.dict() for state in states if state.entity_id.startswith("weather.")]
+            return weather_entities
+        except Exception as e:
+            logger.error(f"Failed to get weather entities: {e}")
+            return []
 
 
 # Example usage

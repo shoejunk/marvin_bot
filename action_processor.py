@@ -224,6 +224,9 @@ class ActionProcessor:
             elif action_name == 'get_smart_devices':
                 await self._handle_get_smart_devices()
                 
+            elif action_name == 'get_weather':
+                await self._handle_get_weather(params)
+                
             elif action_name == 'list_files':
                 await self._handle_list_files(params)
                 
@@ -909,6 +912,29 @@ class ActionProcessor:
     async def _handle_get_smart_devices(self):
         if self.home_assistant:
             await self.home_assistant.handle_action('get_smart_devices', {})
+        else:
+            await self.speak("Home Assistant is not configured.")
+            
+    async def _handle_get_weather(self, params):
+        """Handle getting weather information from Home Assistant.
+        
+        Args:
+            params: List of parameters [entity_id (optional)]
+        """
+        if self.home_assistant:
+            # Get active personality for appropriate voice response
+            active_personality = get_active_personality()
+            
+            # Extract entity_id if provided
+            entity_id = params[0] if params and params[0] else None
+            
+            # Create parameters dictionary
+            params_dict = {}
+            if entity_id:
+                params_dict['entity_id'] = entity_id
+                
+            # Call Home Assistant handler
+            await self.home_assistant.handle_action('get_weather', params_dict)
         else:
             await self.speak("Home Assistant is not configured.")
 

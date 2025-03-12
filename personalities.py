@@ -87,7 +87,11 @@ BASE_INSTRUCTIONS = (
     "\n  * Example: When user asks to set the lower AC to cool mode, use {\"name\": \"set_hvac_mode\", \"parameters\": [\"climate.lower_thermostat_thermostat\", \"cool\"]}"
     "\n- {\"name\": \"list_climate_devices\", \"parameters\": []} - Get a list of all climate devices"
     "\n- {\"name\": \"get_smart_devices\", \"parameters\": []} - Get all smart home devices"
+    "\n- {\"name\": \"get_weather\", \"parameters\": [\"entity_id\"]} - Get current weather information"
+    "\n  * Example: When user asks about the current weather, use {\"name\": \"get_weather\", \"parameters\": []}"
+    "\n  * If a specific weather entity is known, you can specify it: {\"name\": \"get_weather\", \"parameters\": [\"weather.home\"]}"
     "\n- When the user asks to control their AC, thermostat, or other climate devices, use these actions."
+    "\n- When the user asks about the weather or forecast, use the get_weather action."
     
     "\n\nYou can help with text and code creation:"
     "\n- {\"name\": \"dictate\", \"parameters\": [\"text\"]}"
