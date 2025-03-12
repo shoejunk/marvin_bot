@@ -119,13 +119,6 @@ class ActionProcessor:
                 self.display.add_conversation("Wake word requirement turned ON")
                 self.update_history("Wake word requirement turned ON", "")
                 
-            # Handle light control actions
-            elif action_name == "turn_on_light":
-                await self.meross_controller.turn_on_light()
-                
-            elif action_name == "turn_off_light":
-                await self.meross_controller.turn_off_light()
-                
             # Handle music control actions
             elif action_name == "play_song":
                 song_name = params[0] if params else ''
@@ -200,26 +193,7 @@ class ActionProcessor:
             elif action_name == 'get_time':
                 await self._handle_get_time()
                 
-            # File operation actions
-            elif action_name == 'read_file':
-                await self._handle_read_file(params)
-                
-            elif action_name == 'write_file':
-                await self._handle_write_file(params)
-                
-            # Home Assistant actions
-            elif action_name == 'set_thermostat':
-                await self._handle_set_thermostat(params)
-                
-            elif action_name == 'get_thermostat':
-                await self._handle_get_thermostat(params)
-                
-            elif action_name == 'turn_off_thermostat':
-                await self._handle_turn_off_thermostat(params)
-                
-            elif action_name == 'set_hvac_mode':
-                await self._handle_set_hvac_mode(params)
-                
+            # Handle Home Assistant actions
             elif action_name == 'list_climate_devices':
                 await self._handle_list_climate_devices()
                 
@@ -228,6 +202,16 @@ class ActionProcessor:
                 
             elif action_name == 'get_weather':
                 await self._handle_get_weather(params)
+                
+            elif action_name == 'control_entity':
+                await self._handle_control_entity(params)
+                
+            # File operation actions
+            elif action_name == 'read_file':
+                await self._handle_read_file(params)
+                
+            elif action_name == 'write_file':
+                await self._handle_write_file(params)
                 
             elif action_name == 'list_files':
                 await self._handle_list_files(params)
@@ -537,6 +521,91 @@ class ActionProcessor:
             self.display.add_conversation("No search query specified for browsing the internet.", speaker='assistant')
             self.update_history("No search query specified for browsing the internet.", "")
 
+    # Home Assistant handlers
+    async def _handle_list_climate_devices(self):
+        active_personality = get_active_personality()
+        if self.home_assistant:
+            await self.home_assistant.handle_action('list_climate_devices', {})
+        else:
+            await self.speak("Home Assistant is not configured.", personality_name=active_personality)
+            
+    async def _handle_get_smart_devices(self):
+        active_personality = get_active_personality()
+        if self.home_assistant:
+            await self.home_assistant.handle_action('get_smart_devices', {})
+        else:
+            await self.speak("Home Assistant is not configured.", personality_name=active_personality)
+            
+    async def _handle_get_weather(self, params):
+        """Handle getting weather information from Home Assistant.
+        
+        Args:
+            params: List of parameters [entity_id (optional)]
+        """
+        active_personality = get_active_personality()
+        if self.home_assistant:
+            # Extract entity_id if provided
+            entity_id = params[0] if params and params[0] else None
+            
+            # Create parameters dictionary
+            params_dict = {}
+            if entity_id:
+                params_dict['entity_id'] = entity_id
+                
+            # Call Home Assistant handler
+            await self.home_assistant.handle_action('get_weather', params_dict)
+        else:
+            await self.speak("Home Assistant is not configured.", personality_name=active_personality)
+            
+    async def _handle_control_entity(self, params):
+        """Handle controlling any entity in Home Assistant.
+        
+        Args:
+            params: List of parameters [entity_id, service, param1_name, param1_value, ...]
+        """
+        active_personality = get_active_personality()
+        if not self.home_assistant:
+            await self.speak("Home Assistant is not configured.", personality_name=active_personality)
+            return
+            
+        if len(params) < 2:
+            await self.speak("Not enough parameters for control_entity action. Need at least entity_id and service.", 
+                            personality_name=active_personality)
+            return
+            
+        # Extract entity_id and service
+        entity_id = params[0]
+        service = params[1]
+        
+        # Create parameters dictionary
+        params_dict = {
+            'entity_id': entity_id,
+            'service': service
+        }
+        
+        # Add any additional parameters (name-value pairs)
+        if len(params) > 2:
+            # Parameters should be in pairs (name, value)
+            for i in range(2, len(params), 2):
+                if i + 1 < len(params):  # Make sure we have a value for this parameter
+                    param_name = params[i]
+                    param_value = params[i + 1]
+                    
+                    # Try to convert numeric values
+                    try:
+                        if isinstance(param_value, str) and param_value.replace('.', '', 1).isdigit():
+                            if '.' in param_value:
+                                param_value = float(param_value)
+                            else:
+                                param_value = int(param_value)
+                    except (ValueError, TypeError):
+                        pass  # Keep as string if conversion fails
+                        
+                    params_dict[param_name] = param_value
+        
+        # Call Home Assistant handler
+        await self.home_assistant.handle_action('control_entity', params_dict)
+        
     # Timer functions
     async def set_timer(self, duration: str):
         """Set a timer for the specified duration."""
@@ -661,283 +730,6 @@ class ActionProcessor:
             logger.error(error_message)
             self.display.add_conversation(f"❌ {error_message}", speaker='assistant')
             self.update_history(f"❌ {error_message}", "")
-
-    async def _handle_set_thermostat(self, params):
-        active_personality = get_active_personality()
-        if self.home_assistant:
-            # First, check if we need to get the climate devices
-            if len(params) >= 1 and params[0] == "entity_id":
-                # This means the LLM is using placeholder values
-                # Let's try to get the actual climate devices first
-                climate_result = await self.home_assistant.handle_action('list_climate_devices', {})
-                
-                # If we have climate devices, try to find the right one based on the user's request
-                if climate_result.get('success') and climate_result.get('devices'):
-                    # Get the user's input from conversation history to see if they specified a thermostat
-                    user_input = self.get_last_user_input().lower()
-                    selected_device = None
-                    
-                    # Look for keywords in the user's request
-                    for device in climate_result['devices']:
-                        entity_id = device.get('entity_id', '')
-                        friendly_name = device.get('attributes', {}).get('friendly_name', entity_id).lower()
-                        
-                        # Check if the user mentioned this device by name
-                        if 'upper' in user_input and ('upper' in friendly_name or 'upstairs' in friendly_name):
-                            selected_device = device
-                            break
-                        elif 'lower' in user_input and ('lower' in friendly_name or 'downstairs' in friendly_name):
-                            selected_device = device
-                            break
-                        elif friendly_name in user_input:
-                            selected_device = device
-                            break
-                    
-                    # If no specific device was mentioned, use the first one
-                    if not selected_device and climate_result['devices']:
-                        selected_device = climate_result['devices'][0]
-                    
-                    if selected_device:
-                        # Convert list parameters to a dictionary with the real entity_id
-                        params_dict = {
-                            'entity_id': selected_device['entity_id']
-                        }
-                        
-                        # Add temperature if provided
-                        if len(params) >= 2:
-                            params_dict['temperature'] = params[1]
-                        
-                        # Add mode if provided
-                        if len(params) >= 3:
-                            params_dict['mode'] = params[2]
-                        
-                        await self.home_assistant.handle_action('set_thermostat', params_dict)
-                    else:
-                        await self.speak("Could not find any climate devices in Home Assistant.", personality_name=active_personality)
-                else:
-                    await self.speak("Could not find any climate devices in Home Assistant.", personality_name=active_personality)
-            else:
-                # Normal case - convert list parameters to a dictionary
-                params_dict = {}
-                if len(params) >= 1:
-                    params_dict['entity_id'] = params[0]
-                if len(params) >= 2:
-                    params_dict['temperature'] = params[1]
-                if len(params) >= 3:
-                    params_dict['mode'] = params[2]
-                    
-                await self.home_assistant.handle_action('set_thermostat', params_dict)
-        else:
-            await self.speak("Home Assistant is not configured.", personality_name=active_personality)
-            
-    async def _handle_get_thermostat(self, params):
-        active_personality = get_active_personality()
-        if self.home_assistant:
-            # First, check if we need to get the climate devices
-            if len(params) >= 1 and params[0] == "entity_id":
-                # This means the LLM is using placeholder values
-                # Let's try to get the actual climate devices first
-                climate_result = await self.home_assistant.handle_action('list_climate_devices', {})
-                
-                # If we have climate devices, try to find the right one based on the user's request
-                if climate_result.get('success') and climate_result.get('devices'):
-                    # Get the user's input from conversation history to see if they specified a thermostat
-                    user_input = self.get_last_user_input().lower()
-                    selected_device = None
-                    
-                    # Look for keywords in the user's request
-                    for device in climate_result['devices']:
-                        entity_id = device.get('entity_id', '')
-                        friendly_name = device.get('attributes', {}).get('friendly_name', entity_id).lower()
-                        
-                        # Check if the user mentioned this device by name
-                        if 'upper' in user_input and ('upper' in friendly_name or 'upstairs' in friendly_name):
-                            selected_device = device
-                            break
-                        elif 'lower' in user_input and ('lower' in friendly_name or 'downstairs' in friendly_name):
-                            selected_device = device
-                            break
-                        elif friendly_name in user_input:
-                            selected_device = device
-                            break
-                    
-                    # If no specific device was mentioned, use the first one
-                    if not selected_device and climate_result['devices']:
-                        selected_device = climate_result['devices'][0]
-                    
-                    if selected_device:
-                        # Convert list parameters to a dictionary with the real entity_id
-                        params_dict = {
-                            'entity_id': selected_device['entity_id']
-                        }
-                        
-                        await self.home_assistant.handle_action('get_thermostat', params_dict)
-                    else:
-                        await self.speak("Could not find any climate devices in Home Assistant.", personality_name=active_personality)
-                else:
-                    await self.speak("Could not find any climate devices in Home Assistant.", personality_name=active_personality)
-            else:
-                # Normal case - convert list parameters to a dictionary
-                params_dict = {}
-                if len(params) >= 1:
-                    params_dict['entity_id'] = params[0]
-                    
-                await self.home_assistant.handle_action('get_thermostat', params_dict)
-        else:
-            await self.speak("Home Assistant is not configured.", personality_name=active_personality)
-            
-    async def _handle_turn_off_thermostat(self, params):
-        active_personality = get_active_personality()
-        if self.home_assistant:
-            # First, check if we need to get the climate devices
-            if len(params) >= 1 and params[0] == "entity_id":
-                # This means the LLM is using placeholder values
-                # Let's try to get the actual climate devices first
-                climate_result = await self.home_assistant.handle_action('list_climate_devices', {})
-                
-                # If we have climate devices, try to find the right one based on the user's request
-                if climate_result.get('success') and climate_result.get('devices'):
-                    # Get the user's input from conversation history to see if they specified a thermostat
-                    user_input = self.get_last_user_input().lower()
-                    selected_device = None
-                    
-                    # Look for keywords in the user's request
-                    for device in climate_result['devices']:
-                        entity_id = device.get('entity_id', '')
-                        friendly_name = device.get('attributes', {}).get('friendly_name', entity_id).lower()
-                        
-                        # Check if the user mentioned this device by name
-                        if 'upper' in user_input and ('upper' in friendly_name or 'upstairs' in friendly_name):
-                            selected_device = device
-                            break
-                        elif 'lower' in user_input and ('lower' in friendly_name or 'downstairs' in friendly_name):
-                            selected_device = device
-                            break
-                        elif friendly_name in user_input:
-                            selected_device = device
-                            break
-                    
-                    # If no specific device was mentioned, use the first one
-                    if not selected_device and climate_result['devices']:
-                        selected_device = climate_result['devices'][0]
-                    
-                    if selected_device:
-                        # Convert list parameters to a dictionary with the real entity_id
-                        params_dict = {
-                            'entity_id': selected_device['entity_id']
-                        }
-                        
-                        await self.home_assistant.handle_action('turn_off_thermostat', params_dict)
-                    else:
-                        await self.speak("Could not find any climate devices in Home Assistant.", personality_name=active_personality)
-                else:
-                    await self.speak("Could not find any climate devices in Home Assistant.", personality_name=active_personality)
-            else:
-                # Normal case - convert list parameters to a dictionary
-                params_dict = {}
-                if len(params) >= 1:
-                    params_dict['entity_id'] = params[0]
-                    
-                await self.home_assistant.handle_action('turn_off_thermostat', params_dict)
-        else:
-            await self.speak("Home Assistant is not configured.", personality_name=active_personality)
-            
-    async def _handle_set_hvac_mode(self, params):
-        active_personality = get_active_personality()
-        if self.home_assistant:
-            # First, check if we need to get the climate devices
-            if len(params) >= 1 and params[0] == "entity_id":
-                # This means the LLM is using placeholder values
-                # Let's try to get the actual climate devices first
-                climate_result = await self.home_assistant.handle_action('list_climate_devices', {})
-                
-                # If we have climate devices, try to find the right one based on the user's request
-                if climate_result.get('success') and climate_result.get('devices'):
-                    # Get the user's input from conversation history to see if they specified a thermostat
-                    user_input = self.get_last_user_input().lower()
-                    selected_device = None
-                    
-                    # Look for keywords in the user's request
-                    for device in climate_result['devices']:
-                        entity_id = device.get('entity_id', '')
-                        friendly_name = device.get('attributes', {}).get('friendly_name', entity_id).lower()
-                        
-                        # Check if the user mentioned this device by name
-                        if 'upper' in user_input and ('upper' in friendly_name or 'upstairs' in friendly_name):
-                            selected_device = device
-                            break
-                        elif 'lower' in user_input and ('lower' in friendly_name or 'downstairs' in friendly_name):
-                            selected_device = device
-                            break
-                        elif friendly_name in user_input:
-                            selected_device = device
-                            break
-                    
-                    # If no specific device was mentioned, use the first one
-                    if not selected_device and climate_result['devices']:
-                        selected_device = climate_result['devices'][0]
-                    
-                    if selected_device:
-                        # Convert list parameters to a dictionary with the real entity_id
-                        params_dict = {
-                            'entity_id': selected_device['entity_id']
-                        }
-                        
-                        # Add mode if provided
-                        if len(params) >= 2:
-                            params_dict['mode'] = params[1]
-                        
-                        await self.home_assistant.handle_action('set_hvac_mode', params_dict)
-                    else:
-                        await self.speak("Could not find any climate devices in Home Assistant.", personality_name=active_personality)
-                else:
-                    await self.speak("Could not find any climate devices in Home Assistant.", personality_name=active_personality)
-            else:
-                # Normal case - convert list parameters to a dictionary
-                params_dict = {}
-                if len(params) >= 1:
-                    params_dict['entity_id'] = params[0]
-                if len(params) >= 2:
-                    params_dict['mode'] = params[1]
-                    
-                await self.home_assistant.handle_action('set_hvac_mode', params_dict)
-        else:
-            await self.speak("Home Assistant is not configured.", personality_name=active_personality)
-            
-    async def _handle_list_climate_devices(self):
-        active_personality = get_active_personality()
-        if self.home_assistant:
-            await self.home_assistant.handle_action('list_climate_devices', {})
-        else:
-            await self.speak("Home Assistant is not configured.", personality_name=active_personality)
-            
-    async def _handle_get_smart_devices(self):
-        active_personality = get_active_personality()
-        if self.home_assistant:
-            await self.home_assistant.handle_action('get_smart_devices', {})
-        else:
-            await self.speak("Home Assistant is not configured.", personality_name=active_personality)
-            
-    async def _handle_get_weather(self, params):
-        """Handle getting weather information from Home Assistant.
-        
-        Args:
-            params: List of parameters [entity_id (optional)]
-        """
-        active_personality = get_active_personality()
-        if self.home_assistant:
-            # Extract entity_id if provided
-            entity_id = params[0] if params and params[0] else None
-            
-            # Create parameters dictionary
-            params_dict = {}
-            if entity_id:
-                params_dict['entity_id'] = entity_id
-                
-            # Call Home Assistant handler
-            await self.home_assistant.handle_action('get_weather', params_dict)
-        else:
-            await self.speak("Home Assistant is not configured.", personality_name=active_personality)
 
     def get_last_user_input(self):
         """Get the last user input from conversation history"""

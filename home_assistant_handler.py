@@ -104,6 +104,8 @@ class HomeAssistantHandler:
             return await self.get_smart_devices()
         elif action == "get_weather":
             return await self.get_weather(parameters)
+        elif action == "control_entity":
+            return await self.control_entity(parameters)
         else:
             return {"success": False, "message": f"Unknown action: {action}"}
     
@@ -481,6 +483,87 @@ class HomeAssistantHandler:
             else:
                 message = f"Failed to get weather information for {entity_id}"
                 
+            if self.speak_function:
+                active_personality = get_active_personality()
+                await self.speak_function(message, personality_name=active_personality)
+            return {"success": False, "message": message}
+    
+    async def control_entity(self, parameters: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Handle controlling any entity in Home Assistant.
+        
+        Args:
+            parameters: Must contain 'entity_id' and 'service', may contain additional service data
+            
+        Returns:
+            Dict[str, Any]: Result of the action
+        """
+        entity_id = parameters.get('entity_id')
+        service = parameters.get('service')
+        
+        if not entity_id or not service:
+            message = "Missing required parameters: entity_id or service"
+            if self.speak_function:
+                active_personality = get_active_personality()
+                await self.speak_function(message, personality_name=active_personality)
+            return {"success": False, "message": message}
+        
+        # Extract any additional service data
+        service_data = {k: v for k, v in parameters.items() if k not in ['entity_id', 'service']}
+        
+        # Get current state before the action
+        current_state = self.controller.get_entity_state(entity_id)
+        
+        # Call the service
+        success = self.controller.control_entity(entity_id, service, **service_data)
+        
+        if success:
+            # Get the entity type from the entity_id
+            entity_type = entity_id.split('.')[0] if '.' in entity_id else 'entity'
+            
+            # Get friendly name if available
+            friendly_name = None
+            if current_state and 'attributes' in current_state:
+                friendly_name = current_state['attributes'].get('friendly_name')
+            
+            display_name = friendly_name or entity_id
+            
+            # Create a message based on the service
+            if service == 'turn_on':
+                message = f"Turned on {display_name}"
+            elif service == 'turn_off':
+                message = f"Turned off {display_name}"
+            elif service == 'toggle':
+                message = f"Toggled {display_name}"
+            else:
+                # For other services, include the service name and any parameters
+                message = f"Called service '{service}' on {display_name}"
+                if service_data:
+                    param_str = ", ".join(f"{k}={v}" for k, v in service_data.items())
+                    message += f" with parameters: {param_str}"
+            
+            if self.speak_function:
+                active_personality = get_active_personality()
+                await self.speak_function(message, personality_name=active_personality)
+            if self.display:
+                self.display.add_conversation(message, speaker='assistant')
+            if self.update_history:
+                self.update_history(message, "")
+                
+            # Get updated state after the action
+            updated_state = self.controller.get_entity_state(entity_id)
+            
+            return {
+                "success": True,
+                "entity_id": entity_id,
+                "service": service,
+                "service_data": service_data,
+                "message": message,
+                "previous_state": current_state,
+                "current_state": updated_state
+            }
+        else:
+            message = f"Failed to control {entity_id} with service {service}"
             if self.speak_function:
                 active_personality = get_active_personality()
                 await self.speak_function(message, personality_name=active_personality)

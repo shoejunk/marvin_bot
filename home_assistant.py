@@ -245,6 +245,115 @@ class HomeAssistantController:
         except Exception as e:
             logger.error(f"Failed to get weather entities: {e}")
             return []
+            
+    def control_entity(self, entity_id: str, service: str, **service_data) -> bool:
+        """
+        Generic method to control any entity in Home Assistant.
+        
+        Args:
+            entity_id: The entity ID to control (e.g., "light.living_room")
+            service: The service to call (e.g., "turn_on", "turn_off", "toggle")
+            **service_data: Additional service data parameters
+            
+        Returns:
+            bool: True if successful, False otherwise
+        """
+        if not self.connected or not self.client:
+            logger.error("Not connected to Home Assistant")
+            return False
+            
+        try:
+            # Extract the domain from the entity_id
+            if '.' not in entity_id:
+                logger.error(f"Invalid entity_id format: {entity_id}")
+                return False
+                
+            domain = entity_id.split('.')[0]
+            
+            # Get the domain object
+            domain_obj = self.client.get_domain(domain)
+            
+            # Prepare service data (excluding entity_id as it's passed separately)
+            service_data_copy = service_data.copy()
+            
+            # Call the appropriate method on the domain object
+            logger.info(f"Calling service {domain}.{service} with entity_id: {entity_id} and data: {service_data}")
+            
+            # Most domain objects have methods like turn_on, turn_off, toggle, etc.
+            if hasattr(domain_obj, service):
+                method = getattr(domain_obj, service)
+                method(entity_id=entity_id, **service_data_copy)
+            else:
+                # For services that don't match method names directly
+                logger.warning(f"Method {service} not found on domain {domain}, trying generic approach")
+                if service == "turn_on":
+                    domain_obj.turn_on(entity_id=entity_id, **service_data_copy)
+                elif service == "turn_off":
+                    domain_obj.turn_off(entity_id=entity_id, **service_data_copy)
+                elif service == "toggle":
+                    domain_obj.toggle(entity_id=entity_id, **service_data_copy)
+                else:
+                    logger.error(f"Unsupported service: {service} for domain {domain}")
+                    return False
+            
+            logger.info(f"Successfully controlled {entity_id} with service {service}")
+            return True
+        except Exception as e:
+            logger.error(f"Failed to control entity {entity_id} with service {service}: {e}")
+            return False
+    
+    def get_entity_state(self, entity_id: str) -> Optional[Dict[str, Any]]:
+        """
+        Get the current state of any entity.
+        
+        Args:
+            entity_id: The entity ID (e.g., "light.living_room")
+            
+        Returns:
+            Optional[Dict[str, Any]]: The entity state or None if not found
+        """
+        if not self.connected or not self.client:
+            logger.error("Not connected to Home Assistant")
+            return None
+        
+        try:
+            # Get all states and filter for the one we want
+            states = self.client.get_states()
+            for state in states:
+                if state.entity_id == entity_id:
+                    return state.dict()
+            
+            logger.error(f"Entity {entity_id} not found in states")
+            return None
+        except Exception as e:
+            logger.error(f"Failed to get entity state: {e}")
+            return None
+            
+    def get_services(self) -> Dict[str, Dict[str, Any]]:
+        """
+        Get all available services from Home Assistant.
+        
+        Returns:
+            Dict[str, Dict[str, Any]]: Dictionary of services by domain
+        """
+        if not self.connected or not self.client:
+            logger.error("Not connected to Home Assistant")
+            return {}
+        
+        try:
+            services = self.client.get_services()
+            # Convert to a more usable dictionary format
+            services_dict = {}
+            for domain, domain_services in services.items():
+                services_dict[domain] = {}
+                for service_name, service_data in domain_services.items():
+                    services_dict[domain][service_name] = service_data
+            
+            logger.info(f"Retrieved {sum(len(domain_services) for domain_services in services_dict.values())} services from Home Assistant")
+            return services_dict
+        except Exception as e:
+            logger.error(f"Failed to get services: {e}")
+            return {}
 
 
 # Example usage
