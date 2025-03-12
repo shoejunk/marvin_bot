@@ -176,8 +176,15 @@ class HomeAssistantController:
             return None
         
         try:
-            state = self.client.get_state(entity_id)
-            return state.dict() if state else None
+            # Get all states and filter for the one we want
+            # This avoids the error: RawClient.get_state() takes 1 positional argument but 2 were given
+            states = self.client.get_states()
+            for state in states:
+                if state.entity_id == entity_id:
+                    return state.dict()
+            
+            logger.error(f"Entity {entity_id} not found in states")
+            return None
         except Exception as e:
             logger.error(f"Failed to get thermostat state: {e}")
             return None
