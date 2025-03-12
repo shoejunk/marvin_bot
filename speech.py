@@ -18,7 +18,6 @@ def transcribe_speech_to_text() -> str:
     logger.debug('Entering transcribe_speech_to_text function')
     recognizer = sr.Recognizer()
     source = None
-    heard_something = False
     try:
         source = sr.Microphone()
         with source:
@@ -48,59 +47,34 @@ def transcribe_speech_to_text() -> str:
             
             # Use a longer timeout and add a generous phrase time limit
             # This prevents cutting off long sentences while still having a reasonable timeout
-            heard_something = False
             audio = recognizer.listen(source, timeout=10, phrase_time_limit=20)
-
-            heard_something = True
-            # Play sound after audio is captured but before recognition starts
-            # This gives immediate feedback to the user
-            try:
-                logger.debug('Speech detected, playing notification sound')
-                play_waiting_sound_once("high_beep.mp3")
-            except Exception as sound_error:
-                logger.error(f'Error playing notification sound: {sound_error}')
 
             logger.debug('Speech recognition completed')
             
             text = recognizer.recognize_google(audio)
             logger.debug("You said: %s", text)
-            
+
+            # try:
+            #     play_waiting_sound_once("high_beep.mp3")
+            # except Exception as sound_error:
+            #     logger.error(f'Error playing error notification sound: {sound_error}')
+
             # Reset consecutive failures counter on success
             consecutive_failures = 0
             return text
     except sr.UnknownValueError:
-        if heard_something:
-            try:
-                play_waiting_sound_once("low_beep.mp3")
-            except Exception as sound_error:
-                logger.error(f'Error playing error notification sound: {sound_error}')
         logger.warning('Could not understand audio')
         # Increment failure counter but don't add delay
         consecutive_failures += 1
         return ""
     except sr.RequestError as e:
-        if heard_something:
-            try:
-                play_waiting_sound_once("low_beep.mp3")
-            except Exception as sound_error:
-                logger.error(f'Error playing error notification sound: {sound_error}')
         logger.error('Speech recognition service error: %s', e)
         return ""
     except sr.WaitTimeoutError:
-        if heard_something:
-            try:
-                play_waiting_sound_once("low_beep.mp3")
-            except Exception as sound_error:
-                logger.error(f'Error playing error notification sound: {sound_error}')
         logger.debug('No speech detected within timeout period')
         consecutive_failures += 1
         return ""
     except Exception as e:
-        if heard_something:
-            try:
-                play_waiting_sound_once("low_beep.mp3")
-            except Exception as sound_error:
-                logger.error(f'Error playing error notification sound: {sound_error}')
         logger.error(f'Unexpected error in speech recognition: {e}')
         return ""
     finally:
