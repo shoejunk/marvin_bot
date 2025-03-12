@@ -132,14 +132,14 @@ PERSONALITIES = {
         description="Veronica, a cheerful and affectionate AI girlfriend with a sweet personality"
     ),
     
-    "kurt": Personality(
-        name="Kurt",
+    "curtis": Personality(
+        name="Curtis",
         system_prompt=(
-            "You are Kurt, a helpful but very concise and curt assistant. " + BASE_INSTRUCTIONS +
+            "You are Curtis or Kurt, a helpful but very concise and curt assistant. " + BASE_INSTRUCTIONS +
             "\n\nDon't forget to be concise and curt in your responses. Use one or two word reponses if possible."
         ),
         voice="en-US-AndrewNeural",
-        description="Kurt, a helpful but very concise assistant"
+        description="Curtis, a helpful but very concise assistant"
     ),
     
     "pepper": Personality(
