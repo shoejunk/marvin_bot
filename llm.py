@@ -45,6 +45,26 @@ def clean_generated_text(original_text: str) -> str:
             if json_match:
                 json_str = json_match.group(1)
             else:
+                # Check if it's a single action object (missing the standard structure)
+                action_match = re.search(r'({[\s\S]*"name"[\s\S]*"parameters"[\s\S]*})', original_text)
+                if action_match:
+                    action_str = action_match.group(1)
+                    logger.debug(f"Found single action object: {action_str}")
+                    # Try to parse it as JSON
+                    try:
+                        action_obj = json.loads(action_str)
+                        # If it has name and parameters, it's likely an action
+                        if "name" in action_obj and "parameters" in action_obj:
+                            # Create a proper response structure with this action
+                            response_obj = {
+                                "response": f"Executing {action_obj['name']} action",
+                                "actions": [action_obj]
+                            }
+                            logger.debug(f"Created proper response structure from single action: {response_obj}")
+                            return json.dumps(response_obj)
+                    except json.JSONDecodeError:
+                        logger.warning(f"Failed to parse potential action object: {action_str}")
+                
                 # If no JSON found, wrap the text in a basic response structure
                 logger.warning("No JSON found in response, creating basic structure")
                 return json.dumps({"response": original_text.strip(), "actions": []})
@@ -55,28 +75,49 @@ def clean_generated_text(original_text: str) -> str:
         # Handle any double escaping that might occur
         json_str = json_str.replace('\\\\', '\\')
         
+        # Fix issue with extra closing braces that can break JSON parsing
+        # Count opening and closing braces to ensure they match
+        open_braces = json_str.count('{')
+        close_braces = json_str.count('}')
+        if close_braces > open_braces:
+            # Remove excess closing braces
+            excess = close_braces - open_braces
+            json_str = json_str[:-excess]
+            logger.debug(f"Fixed JSON by removing {excess} extra closing braces")
+        
         # Parse and validate the JSON
         response_obj = json.loads(json_str)
         
-        # Ensure the response has the required fields
-        if "response" not in response_obj:
-            response_obj["response"] = original_text.strip()
-        if "actions" not in response_obj:
-            response_obj["actions"] = []
-            
-        # Validate each action to ensure it has the required fields
-        validated_actions = []
-        for action in response_obj.get("actions", []):
-            if isinstance(action, dict) and "name" in action:
-                # Ensure parameters is a list
-                if "parameters" not in action or not isinstance(action["parameters"], list):
-                    action["parameters"] = []
-                validated_actions.append(action)
-                logger.debug(f"Validated action: {action}")
-            else:
-                logger.warning(f"Skipping invalid action: {action}")
+        # Check if it's a single action object without proper structure
+        if "name" in response_obj and "parameters" in response_obj and "response" not in response_obj and "actions" not in response_obj:
+            logger.debug(f"Found single action object in JSON: {response_obj}")
+            # Create a proper response structure with this action
+            action_obj = response_obj
+            response_obj = {
+                "response": f"Executing {action_obj['name']} action",
+                "actions": [action_obj]
+            }
+            logger.debug(f"Converted single action to proper response structure: {response_obj}")
+        else:
+            # Ensure the response has the required fields
+            if "response" not in response_obj:
+                response_obj["response"] = original_text.strip()
+            if "actions" not in response_obj:
+                response_obj["actions"] = []
                 
-        response_obj["actions"] = validated_actions
+            # Validate each action to ensure it has the required fields
+            validated_actions = []
+            for action in response_obj.get("actions", []):
+                if isinstance(action, dict) and "name" in action:
+                    # Ensure parameters is a list
+                    if "parameters" not in action or not isinstance(action["parameters"], list):
+                        action["parameters"] = []
+                    validated_actions.append(action)
+                    logger.debug(f"Validated action: {action}")
+                else:
+                    logger.warning(f"Skipping invalid action: {action}")
+                    
+            response_obj["actions"] = validated_actions
         
         # Log the final response object for debugging
         logger.debug(f"Final response object: {response_obj}")

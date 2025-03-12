@@ -54,11 +54,6 @@ def transcribe_speech_to_text() -> str:
             text = recognizer.recognize_google(audio)
             logger.debug("You said: %s", text)
 
-            # try:
-            #     play_waiting_sound_once("high_beep.mp3")
-            # except Exception as sound_error:
-            #     logger.error(f'Error playing error notification sound: {sound_error}')
-
             # Reset consecutive failures counter on success
             consecutive_failures = 0
             return text

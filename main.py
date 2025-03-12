@@ -27,6 +27,7 @@ from voice_processor import VoiceProcessor
 from action_processor import ActionProcessor
 from assistant_manager import AssistantManager
 from personalities import get_personality, list_personalities
+from waiting_sound import play_waiting_sound_once
 
 # Load environment variables from .env file
 load_dotenv()
@@ -216,6 +217,8 @@ async def async_main():
                         update_setting_function=update_setting
                     )
                     
+                play_waiting_sound_once()
+
             except json.JSONDecodeError:
                 logger.error("Failed to parse response as JSON")
                 display.add_conversation("Error: Failed to parse response as JSON", speaker='assistant')
