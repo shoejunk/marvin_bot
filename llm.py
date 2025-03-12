@@ -13,6 +13,7 @@ from dotenv import load_dotenv
 from actions import action_strings  # Import shared valid actions list
 from conversation_history import load_history
 from personalities import get_personality
+from context_store import get_context_for_llm
 
 # Get a logger for this module
 logger = get_logger(__name__)
@@ -161,8 +162,24 @@ def get_ai_response(user_input, personality_name=None):
         files_list = file_ops.list_files()
         files_info = f"Files in artifacts directory: {', '.join(files_list)}"
         
+        # Get persistent context for Home Assistant
+        home_assistant_context = get_context_for_llm()
+        
         # Prepare the conversation history as input messages
         messages = []
+        
+        # Add system message with Home Assistant context first for importance
+        if home_assistant_context:
+            messages.append({
+                "role": "system",
+                "content": home_assistant_context
+            })
+        
+        # Add system message with files info
+        messages.append({
+            "role": "system",
+            "content": files_info
+        })
         
         # Add conversation history (limited to last few turns for context)
         history_limit = 5  # Limit to last 5 turns for context
@@ -188,12 +205,6 @@ def get_ai_response(user_input, personality_name=None):
                 "role": "assistant",
                 "content": assistant_text
             })
-        
-        # Add system message with files info
-        messages.append({
-            "role": "system",
-            "content": files_info
-        })
         
         # Add the current user input
         messages.append({

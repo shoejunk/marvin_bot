@@ -28,6 +28,7 @@ from action_processor import ActionProcessor
 from assistant_manager import AssistantManager
 from personalities import get_personality, list_personalities
 from waiting_sound import play_waiting_sound_once
+from context_store import update_home_assistant_devices, update_home_assistant_services, update_home_assistant_climate_devices
 
 # Load environment variables from .env file
 load_dotenv()
@@ -93,76 +94,31 @@ async def async_main():
             update_history=update_history
         )
         
-        # Load Home Assistant devices at startup and add to LLM context
+        # Load Home Assistant devices at startup and add to persistent context store
         try:
             # Get all climate devices
             climate_devices = action_processor.home_assistant.controller.get_climate_devices()
             if climate_devices:
-                climate_info = "Available climate devices in Home Assistant:\n"
-                for device in climate_devices:
-                    entity_id = device.get('entity_id', '')
-                    friendly_name = device.get('attributes', {}).get('friendly_name', entity_id)
-                    climate_info += f"- {friendly_name}: {entity_id}\n"
-                
-                # Store this information in conversation history for LLM context
-                update_history(climate_info, "")
+                # Update climate devices in the persistent context store
+                update_home_assistant_climate_devices(climate_devices)
                 logger.info(f"Loaded {len(climate_devices)} climate devices from Home Assistant")
             
             # Get all smart devices and their available services
             smart_devices = action_processor.home_assistant.controller.get_devices()
             if smart_devices:
-                devices_info = "Available devices in Home Assistant:\n"
-                
-                # Group devices by domain for better organization
-                devices_by_domain = {}
-                for device in smart_devices:
-                    entity_id = device.get('entity_id', '')
-                    if not entity_id:
-                        continue
-                        
-                    domain = entity_id.split('.')[0]
-                    friendly_name = device.get('attributes', {}).get('friendly_name', entity_id)
-                    state = device.get('state', 'unknown')
-                    
-                    if domain not in devices_by_domain:
-                        devices_by_domain[domain] = []
-                    
-                    devices_by_domain[domain].append({
-                        'entity_id': entity_id,
-                        'friendly_name': friendly_name,
-                        'state': state
-                    })
-                
-                # Add devices by domain to the info string
-                for domain, domain_devices in devices_by_domain.items():
-                    devices_info += f"\n{domain.upper()} devices:\n"
-                    for device in domain_devices:
-                        devices_info += f"- {device['friendly_name']}: {device['entity_id']} (current state: {device['state']})\n"
+                # Update devices in the persistent context store
+                update_home_assistant_devices(smart_devices)
+                logger.info(f"Loaded {len(smart_devices)} smart devices from Home Assistant")
                 
                 # Get available services for each domain
                 try:
                     services = action_processor.home_assistant.controller.get_services()
                     if services:
-                        devices_info += "\nAvailable services for Home Assistant domains:\n"
-                        for domain, domain_services in services.items():
-                            if domain in devices_by_domain:  # Only include domains we have devices for
-                                devices_info += f"\n{domain.upper()} services:\n"
-                                for service_name, service_data in domain_services.items():
-                                    devices_info += f"- {service_name}: {service_data.get('description', 'No description')}\n"
-                                    
-                                    # Include service fields/parameters if available
-                                    fields = service_data.get('fields', {})
-                                    if fields:
-                                        devices_info += "  Parameters:\n"
-                                        for field_name, field_data in fields.items():
-                                            field_desc = field_data.get('description', 'No description')
-                                            devices_info += f"    - {field_name}: {field_desc}\n"
+                        # Update services in the persistent context store
+                        update_home_assistant_services(services)
                 except Exception as e:
                     logger.error(f"Error getting Home Assistant services: {e}")
                 
-                # Store this information in conversation history for LLM context
-                update_history(devices_info, "")
-                logger.info(f"Loaded {len(smart_devices)} smart devices from Home Assistant")
         except Exception as e:
             logger.error(f"Error loading Home Assistant devices: {e}")
             

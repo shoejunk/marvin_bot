@@ -1,0 +1,476 @@
+{
+  "home_assistant": {
+    "devices": {
+      "person": [
+        {
+          "entity_id": "person.joseph",
+          "friendly_name": "Joseph",
+          "state": "home"
+        }
+      ],
+      "update": [
+        {
+          "entity_id": "update.home_assistant_supervisor_update",
+          "friendly_name": "Home Assistant Supervisor Update",
+          "state": "off"
+        },
+        {
+          "entity_id": "update.home_assistant_core_update",
+          "friendly_name": "Home Assistant Core Update",
+          "state": "off"
+        },
+        {
+          "entity_id": "update.matter_server_update",
+          "friendly_name": "Matter Server Update",
+          "state": "off"
+        },
+        {
+          "entity_id": "update.get_hacs_update",
+          "friendly_name": "Get HACS Update",
+          "state": "off"
+        },
+        {
+          "entity_id": "update.home_assistant_operating_system_update",
+          "friendly_name": "Home Assistant Operating System Update",
+          "state": "off"
+        },
+        {
+          "entity_id": "update.meross_lan_update",
+          "friendly_name": "Meross LAN update",
+          "state": "off"
+        },
+        {
+          "entity_id": "update.hacs_update",
+          "friendly_name": "HACS update",
+          "state": "off"
+        },
+        {
+          "entity_id": "update.update_firmware",
+          "friendly_name": "Update firmware",
+          "state": "on"
+        },
+        {
+          "entity_id": "update.update_firmware_2",
+          "friendly_name": "Update firmware",
+          "state": "on"
+        },
+        {
+          "entity_id": "update.update_firmware_3",
+          "friendly_name": "Update firmware",
+          "state": "on"
+        }
+      ],
+      "conversation": [
+        {
+          "entity_id": "conversation.home_assistant",
+          "friendly_name": "Home Assistant",
+          "state": "2025-03-12T20:51:12.735697+00:00"
+        }
+      ],
+      "zone": [
+        {
+          "entity_id": "zone.home",
+          "friendly_name": "Home",
+          "state": "1"
+        }
+      ],
+      "sun": [
+        {
+          "entity_id": "sun.sun",
+          "friendly_name": "Sun",
+          "state": "above_horizon"
+        }
+      ],
+      "sensor": [
+        {
+          "entity_id": "sensor.sun_next_dawn",
+          "friendly_name": "Sun Next dawn",
+          "state": "2025-03-13T13:37:56+00:00"
+        },
+        {
+          "entity_id": "sensor.sun_next_dusk",
+          "friendly_name": "Sun Next dusk",
+          "state": "2025-03-13T02:21:28+00:00"
+        },
+        {
+          "entity_id": "sensor.sun_next_midnight",
+          "friendly_name": "Sun Next midnight",
+          "state": "2025-03-13T07:59:49+00:00"
+        },
+        {
+          "entity_id": "sensor.sun_next_noon",
+          "friendly_name": "Sun Next noon",
+          "state": "2025-03-13T20:00:02+00:00"
+        },
+        {
+          "entity_id": "sensor.sun_next_rising",
+          "friendly_name": "Sun Next rising",
+          "state": "2025-03-13T14:03:14+00:00"
+        },
+        {
+          "entity_id": "sensor.sun_next_setting",
+          "friendly_name": "Sun Next setting",
+          "state": "2025-03-13T01:56:08+00:00"
+        },
+        {
+          "entity_id": "sensor.joes_iphone_16_pro_battery_level",
+          "friendly_name": "Joe\u2019s iPhone 16 Pro Battery Level",
+          "state": "75"
+        },
+        {
+          "entity_id": "sensor.joes_iphone_16_pro_battery_state",
+          "friendly_name": "Joe\u2019s iPhone 16 Pro Battery State",
+          "state": "Not Charging"
+        },
+        {
+          "entity_id": "sensor.joes_iphone_16_pro_storage",
+          "friendly_name": "Joe\u2019s iPhone 16 Pro Storage",
+          "state": "27.54"
+        },
+        {
+          "entity_id": "sensor.joes_iphone_16_pro_ssid",
+          "friendly_name": "Joe\u2019s iPhone 16 Pro SSID",
+          "state": "Not Connected"
+        },
+        {
+          "entity_id": "sensor.joes_iphone_16_pro_sim_2",
+          "friendly_name": "Joe\u2019s iPhone 16 Pro SIM 2",
+          "state": "--"
+        },
+        {
+          "entity_id": "sensor.joes_iphone_16_pro_connection_type",
+          "friendly_name": "Joe\u2019s iPhone 16 Pro Connection Type",
+          "state": "Wi-Fi"
+        },
+        {
+          "entity_id": "sensor.joes_iphone_16_pro_bssid",
+          "friendly_name": "Joe\u2019s iPhone 16 Pro BSSID",
+          "state": "Not Connected"
+        },
+        {
+          "entity_id": "sensor.joes_iphone_16_pro_last_update_trigger",
+          "friendly_name": "Joe\u2019s iPhone 16 Pro Last Update Trigger",
+          "state": "Background Fetch"
+        },
+        {
+          "entity_id": "sensor.joes_iphone_16_pro_sim_1",
+          "friendly_name": "Joe\u2019s iPhone 16 Pro SIM 1",
+          "state": "--"
+        },
+        {
+          "entity_id": "sensor.joes_iphone_16_pro_geocoded_location",
+          "friendly_name": "Joe\u2019s iPhone 16 Pro Geocoded Location",
+          "state": "301 Autumn Sage\nLake Forest CA 92610\nUnited States"
+        },
+        {
+          "entity_id": "sensor.joes_iphone_16_pro_app_version",
+          "friendly_name": "Joe\u2019s iPhone 16 Pro App Version",
+          "state": "2025.2"
+        },
+        {
+          "entity_id": "sensor.joes_iphone_16_pro_location_permission",
+          "friendly_name": "Joe\u2019s iPhone 16 Pro Location permission",
+          "state": "Authorized Always"
+        },
+        {
+          "entity_id": "sensor.joes_iphone_16_pro_audio_output",
+          "friendly_name": "Joe\u2019s iPhone 16 Pro Audio Output",
+          "state": "Built-in Speaker"
+        },
+        {
+          "entity_id": "sensor.joes_iphone_16_pro_activity",
+          "friendly_name": "Joe\u2019s iPhone 16 Pro Activity",
+          "state": "Stationary"
+        },
+        {
+          "entity_id": "sensor.joes_iphone_16_pro_distance",
+          "friendly_name": "Joe\u2019s iPhone 16 Pro Distance",
+          "state": "1959"
+        },
+        {
+          "entity_id": "sensor.joes_iphone_16_pro_average_active_pace",
+          "friendly_name": "Joe\u2019s iPhone 16 Pro Average Active Pace",
+          "state": "0"
+        },
+        {
+          "entity_id": "sensor.joes_iphone_16_pro_floors_descended",
+          "friendly_name": "Joe\u2019s iPhone 16 Pro Floors Descended",
+          "state": "7"
+        },
+        {
+          "entity_id": "sensor.joes_iphone_16_pro_floors_ascended",
+          "friendly_name": "Joe\u2019s iPhone 16 Pro Floors Ascended",
+          "state": "4"
+        },
+        {
+          "entity_id": "sensor.joes_iphone_16_pro_steps",
+          "friendly_name": "Joe\u2019s iPhone 16 Pro Steps",
+          "state": "2834"
+        },
+        {
+          "entity_id": "sensor.brother_mfc_7360n_printer",
+          "friendly_name": "Brother MFC-7360N Printer",
+          "state": "idle"
+        },
+        {
+          "entity_id": "sensor.outdoor_tree_signal_level",
+          "friendly_name": "Outdoor Tree Signal level",
+          "state": "2"
+        },
+        {
+          "entity_id": "sensor.outdoor_tree_auto_off_at",
+          "friendly_name": "Outdoor Tree Auto off at",
+          "state": "unknown"
+        },
+        {
+          "entity_id": "sensor.upper_thermostat_thermostat_indoor_temperature",
+          "friendly_name": "Upper Thermostat Thermostat Indoor temperature",
+          "state": "73"
+        },
+        {
+          "entity_id": "sensor.upper_thermostat_thermostat_outdoor_temperature",
+          "friendly_name": "Upper Thermostat Thermostat Outdoor temperature",
+          "state": "57"
+        },
+        {
+          "entity_id": "sensor.upper_thermostat_thermostat_outdoor_humidity",
+          "friendly_name": "Upper Thermostat Thermostat Outdoor humidity",
+          "state": "85"
+        },
+        {
+          "entity_id": "sensor.upper_thermostat_thermostat_next_period_time",
+          "friendly_name": "Upper Thermostat Thermostat Next period time",
+          "state": "2025-03-13T05:00:00+00:00"
+        },
+        {
+          "entity_id": "sensor.upper_thermostat_thermostat_setpoint_status",
+          "friendly_name": "Upper Thermostat Thermostat Setpoint status",
+          "state": "Held Temporarily"
+        },
+        {
+          "entity_id": "sensor.lower_thermostat_thermostat_indoor_temperature",
+          "friendly_name": "Lower Thermostat Thermostat Indoor temperature",
+          "state": "70"
+        },
+        {
+          "entity_id": "sensor.lower_thermostat_thermostat_outdoor_temperature",
+          "friendly_name": "Lower Thermostat Thermostat Outdoor temperature",
+          "state": "57.2"
+        },
+        {
+          "entity_id": "sensor.lower_thermostat_thermostat_outdoor_humidity",
+          "friendly_name": "Lower Thermostat Thermostat Outdoor humidity",
+          "state": "86"
+        },
+        {
+          "entity_id": "sensor.lower_thermostat_thermostat_next_period_time",
+          "friendly_name": "Lower Thermostat Thermostat Next period time",
+          "state": "2025-03-13T07:00:00+00:00"
+        },
+        {
+          "entity_id": "sensor.lower_thermostat_thermostat_setpoint_status",
+          "friendly_name": "Lower Thermostat Thermostat Setpoint status",
+          "state": "Held Temporarily"
+        },
+        {
+          "entity_id": "sensor.smart_switch_2008037315425451851848e1e92977de_signal_strength",
+          "friendly_name": "Left Office Light Signal strength",
+          "state": "100"
+        },
+        {
+          "entity_id": "sensor.smart_switch_2008039430931051851848e1e929a2cc_signal_strength",
+          "friendly_name": "Computer Light Signal strength",
+          "state": "100"
+        },
+        {
+          "entity_id": "sensor.smart_switch_2008037650527551851848e1e92978ba_signal_strength",
+          "friendly_name": "Right Office Light Signal strength",
+          "state": "100"
+        }
+      ],
+      "todo": [
+        {
+          "entity_id": "todo.shopping_list",
+          "friendly_name": "Shopping List",
+          "state": "0"
+        }
+      ],
+      "tts": [
+        {
+          "entity_id": "tts.google_translate_en_com",
+          "friendly_name": "Google Translate en com",
+          "state": "unknown"
+        }
+      ],
+      "binary_sensor": [
+        {
+          "entity_id": "binary_sensor.joes_iphone_16_pro_focus",
+          "friendly_name": "Joe\u2019s iPhone 16 Pro Focus",
+          "state": "off"
+        },
+        {
+          "entity_id": "binary_sensor.outdoor_tree_cloud_connection",
+          "friendly_name": "Outdoor Tree Cloud connection",
+          "state": "on"
+        }
+      ],
+      "device_tracker": [
+        {
+          "entity_id": "device_tracker.joes_iphone_16_pro",
+          "friendly_name": "Joe\u2019s iPhone 16 Pro",
+          "state": "home"
+        }
+      ],
+      "media_player": [
+        {
+          "entity_id": "media_player.master_bedroom_speaker",
+          "friendly_name": "Master Bedroom speaker",
+          "state": "off"
+        },
+        {
+          "entity_id": "media_player.office_speaker",
+          "friendly_name": "Office speaker",
+          "state": "off"
+        },
+        {
+          "entity_id": "media_player.upstairs_speakers",
+          "friendly_name": "Upstairs Speakers",
+          "state": "off"
+        },
+        {
+          "entity_id": "media_player.guest_bedroom_speaker",
+          "friendly_name": "Guest Bedroom speaker",
+          "state": "off"
+        },
+        {
+          "entity_id": "media_player.tv",
+          "friendly_name": "TV",
+          "state": "off"
+        },
+        {
+          "entity_id": "media_player.display",
+          "friendly_name": "Display",
+          "state": "off"
+        },
+        {
+          "entity_id": "media_player.google_tv",
+          "friendly_name": "media_player.google_tv",
+          "state": "unavailable"
+        }
+      ],
+      "weather": [
+        {
+          "entity_id": "weather.forecast_home",
+          "friendly_name": "Forecast Home",
+          "state": "rainy"
+        }
+      ],
+      "number": [
+        {
+          "entity_id": "number.outdoor_tree_turn_off_in",
+          "friendly_name": "Outdoor Tree Turn off in",
+          "state": "120"
+        }
+      ],
+      "switch": [
+        {
+          "entity_id": "switch.outdoor_tree",
+          "friendly_name": "Outdoor Tree",
+          "state": "off"
+        },
+        {
+          "entity_id": "switch.outdoor_tree_auto_off_enabled",
+          "friendly_name": "Outdoor Tree Auto off enabled",
+          "state": "off"
+        },
+        {
+          "entity_id": "switch.outdoor_tree_auto_update_enabled",
+          "friendly_name": "Outdoor Tree Auto update enabled",
+          "state": "on"
+        },
+        {
+          "entity_id": "switch.outdoor_tree_led",
+          "friendly_name": "Outdoor Tree LED",
+          "state": "on"
+        },
+        {
+          "entity_id": "switch.smart_switch_2008037315425451851848e1e92977de_outlet",
+          "friendly_name": "Left Office Light",
+          "state": "on"
+        },
+        {
+          "entity_id": "switch.smart_switch_2008039430931051851848e1e929a2cc_outlet",
+          "friendly_name": "Computer Office Light",
+          "state": "on"
+        },
+        {
+          "entity_id": "switch.smart_switch_2008037650527551851848e1e92978ba_outlet",
+          "friendly_name": "Right Office Light",
+          "state": "on"
+        }
+      ],
+      "climate": [
+        {
+          "entity_id": "climate.lower_thermostat_thermostat",
+          "friendly_name": "Lower Thermostat Thermostat",
+          "state": "heat"
+        },
+        {
+          "entity_id": "climate.upper_thermostat_thermostat",
+          "friendly_name": "Upper Thermostat Thermostat",
+          "state": "heat"
+        }
+      ],
+      "light": [
+        {
+          "entity_id": "light.smart_switch_2008037315425451851848e1e92977de_dnd",
+          "friendly_name": "Left Office Light Dnd",
+          "state": "on"
+        },
+        {
+          "entity_id": "light.smart_switch_2008039430931051851848e1e929a2cc_dnd",
+          "friendly_name": "Computer Light Dnd",
+          "state": "on"
+        },
+        {
+          "entity_id": "light.smart_switch_2008037650527551851848e1e92978ba_dnd",
+          "friendly_name": "Right Office Light Dnd",
+          "state": "on"
+        }
+      ]
+    },
+    "services": {},
+    "climate_devices": [
+      {
+        "entity_id": "climate.lower_thermostat_thermostat",
+        "friendly_name": "Lower Thermostat Thermostat",
+        "current_temperature": 70,
+        "target_temperature": 70,
+        "hvac_mode": "heat",
+        "hvac_modes": [
+          "off",
+          "heat",
+          "cool",
+          "heat_cool"
+        ],
+        "min_temp": 50,
+        "max_temp": 90
+      },
+      {
+        "entity_id": "climate.upper_thermostat_thermostat",
+        "friendly_name": "Upper Thermostat Thermostat",
+        "current_temperature": 73,
+        "target_temperature": 70,
+        "hvac_mode": "heat",
+        "hvac_modes": [
+          "off",
+          "heat",
+          "cool"
+        ],
+        "min_temp": 50,
+        "max_temp": 90
+      }
+    ]
+  },
+  "system": {}
+}
