@@ -12,7 +12,6 @@ from typing import Dict, Any, List, Optional
 from home_assistant import HomeAssistantController
 from dotenv import load_dotenv
 from settings_manager import get_active_personality
-from personalities import get_personality
 
 # Load environment variables
 load_dotenv()

@@ -30,6 +30,9 @@ def clean_generated_text(original_text: str) -> str:
     """
     Cleans the generated text from the language model.
     It extracts the JSON response and ensures it's properly formatted.
+    
+    Note: This function is kept for backward compatibility but is primarily
+    used as a fallback for the new Responses API implementation.
     """
     logger.debug("Original response: %s", original_text)
     
@@ -130,7 +133,7 @@ def clean_generated_text(original_text: str) -> str:
 
 def get_ai_response(user_input, personality_name=None):
     """
-    Gets a response from the OpenAI API.
+    Gets a response from the OpenAI API using the new Responses API.
     
     Args:
         user_input (str): The user's input text
@@ -150,13 +153,25 @@ def get_ai_response(user_input, personality_name=None):
         history = load_history()
         logger.debug("Loaded %d conversation turns from history", len(history))
         
-        # Prepare messages with system prompt and history
-        messages = [{"role": "system", "content": personality.system_prompt}]
+        # Import FileOperations here to avoid circular imports
+        from file_operations import FileOperations
+        
+        # Get the list of files in the artifacts directory
+        file_ops = FileOperations()
+        files_list = file_ops.list_files()
+        files_info = f"Files in artifacts directory: {', '.join(files_list)}"
+        
+        # Prepare the conversation history as input messages
+        messages = []
         
         # Add conversation history (limited to last few turns for context)
         history_limit = 5  # Limit to last 5 turns for context
         for turn in history[-history_limit:]:
-            messages.append({"role": "user", "content": turn["user"]})
+            # Add user message
+            messages.append({
+                "role": "user",
+                "content": turn["user"]
+            })
             
             # Extract the response text from the assistant's JSON response
             assistant_content = turn["assistant"]
@@ -168,39 +183,152 @@ def get_ai_response(user_input, personality_name=None):
                 # If not valid JSON, use the content as is
                 assistant_text = assistant_content
                 
-            messages.append({"role": "assistant", "content": assistant_text})
+            # Add assistant message
+            messages.append({
+                "role": "assistant",
+                "content": assistant_text
+            })
         
-        # Import FileOperations here to avoid circular imports
-        from file_operations import FileOperations
-        
-        # Get the list of files in the artifacts directory
-        file_ops = FileOperations()
-        files_list = file_ops.list_files()
-        files_info = f"Files in artifacts directory: {', '.join(files_list)}"
-        
-        # Add the artifacts directory contents as context
-        messages.append({"role": "system", "content": files_info})
+        # Add system message with files info
+        messages.append({
+            "role": "system",
+            "content": files_info
+        })
         
         # Add the current user input
-        messages.append({"role": "user", "content": user_input})
+        messages.append({
+            "role": "user",
+            "content": user_input
+        })
         
         logger.debug("Sending request to OpenAI with %d messages", len(messages))
         
-        # Get response from OpenAI
-        response = client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=messages,
-            temperature=0.7,
-            max_tokens=500
-        )
+        # Define the JSON schema for structured output
+        json_schema = {
+            "type": "object",
+            "properties": {
+                "response": {
+                    "type": "string",
+                    "description": "The text response to be spoken to the user"
+                },
+                "actions": {
+                    "type": "array",
+                    "description": "List of actions to perform",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "name": {
+                                "type": "string",
+                                "description": "Name of the action to perform",
+                                "enum": action_strings  # Use the imported action_strings list
+                            },
+                            "parameters": {
+                                "type": "array",
+                                "description": "Parameters for the action",
+                                "items": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "required": ["name", "parameters"],
+                        "additionalProperties": False
+                    }
+                }
+            },
+            "required": ["response", "actions"],
+            "additionalProperties": False
+        }
         
-        assistant_reply = response.choices[0].message.content
-        logger.debug("Received response from OpenAI, cleaning text")
+        # Try using the Responses API
+        try:
+            # Get response from OpenAI using the Responses API
+            response = client.responses.create(
+                model="gpt-4o",
+                input=messages,
+                instructions=personality.system_prompt,
+                temperature=0.7,
+                max_output_tokens=8192,
+                text={
+                    "format": {
+                        "type": "json_schema",
+                        "name": "marvin_response",
+                        "schema": json_schema,
+                        "strict": True
+                    }
+                }
+            )
+            
+            # Extract the text content from the response
+            try:
+                # Get the output text from the response
+                assistant_reply = response.output_text
+                logger.debug("Received response from OpenAI Responses API: %s", assistant_reply)
+                
+                # Parse the JSON response to ensure it's valid
+                try:
+                    response_obj = json.loads(assistant_reply)
+                    
+                    # Ensure the response has the required fields
+                    if "response" not in response_obj:
+                        response_obj["response"] = "I'm not sure how to respond to that."
+                    if "actions" not in response_obj:
+                        response_obj["actions"] = []
+                        
+                    # Validate each action to ensure it has the required fields
+                    validated_actions = []
+                    for action in response_obj.get("actions", []):
+                        if isinstance(action, dict) and "name" in action:
+                            # Ensure parameters is a list
+                            if "parameters" not in action or not isinstance(action["parameters"], list):
+                                action["parameters"] = []
+                            validated_actions.append(action)
+                            logger.debug(f"Validated action: {action}")
+                        else:
+                            logger.warning(f"Skipping invalid action: {action}")
+                            
+                    response_obj["actions"] = validated_actions
+                    
+                    # Convert to JSON string
+                    cleaned_reply = json.dumps(response_obj)
+                    logger.debug("Returning response: %s", cleaned_reply)
+                    return cleaned_reply
+                except json.JSONDecodeError as e:
+                    logger.error(f"Error parsing JSON from structured response: {e}")
+                    # Fall back to the old method if structured output fails
+                    return clean_generated_text(assistant_reply)
+            except AttributeError as e:
+                # If output_text is not available, try to extract the content from the response object
+                logger.error(f"Error accessing output_text: {e}")
+                logger.debug(f"Response object: {response}")
+                
+                # Try to access the content directly from the response
+                try:
+                    if hasattr(response, 'content') and response.content:
+                        assistant_reply = response.content
+                        logger.debug(f"Extracted content from response: {assistant_reply}")
+                        return clean_generated_text(assistant_reply)
+                    elif hasattr(response, 'choices') and response.choices:
+                        assistant_reply = response.choices[0].message.content
+                        logger.debug(f"Extracted content from choices: {assistant_reply}")
+                        return clean_generated_text(assistant_reply)
+                except Exception as inner_e:
+                    logger.error(f"Error extracting content from response object: {inner_e}")
+                
+                # If we can't extract the content, return a default response
+                logger.warning("Could not extract content from response object")
+                return json.dumps({"response": "I'm sorry. I couldn't process your request properly.", "actions": []})
+            except Exception as e:
+                logger.error(f"Error extracting content from response: {e}")
+                logger.debug(f"Response object: {response}")
+                # If we couldn't extract a valid response, log a warning
+                logger.warning("Could not extract valid response from OpenAI Responses API.")
+                return json.dumps({"response": "I'm sorry. I couldn't process your request properly.", "actions": []})
+                
+        except Exception as e:
+            # Log the error
+            logger.error(f"Error using OpenAI Responses API: {e}")
+            return json.dumps({"response": "I'm sorry. My systems are offline.", "actions": []})
         
-        cleaned_reply = clean_generated_text(assistant_reply)
-        logger.debug("Returning cleaned response: %s", cleaned_reply)
-        
-        return cleaned_reply
     except Exception as e:
         logger.error("Error using OpenAI API: %s", e)
         return json.dumps({"response": "I'm sorry. My systems are offline.", "actions": []})
