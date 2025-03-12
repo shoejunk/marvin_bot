@@ -13,6 +13,7 @@ from logger_config import get_logger
 from settings_manager import get_active_personality
 from personalities import get_personality
 from emoji_filter import filter_for_tts
+from waiting_sound import play_waiting_sound_once  # Import the waiting sound function
 
 # Get a logger for this module
 logger = get_logger(__name__)
@@ -102,6 +103,10 @@ class VoiceProcessor:
                 if not matched_wake_word:
                     logger.info("Waiting for wake word...")
                     return None, False
+                
+                # Wake word detected - play the waiting sound
+                play_waiting_sound_once()
+                logger.debug("Waiting sound played after wake word detection")
                     
                 # Remove the detected wake word from the beginning of the input
                 command = user_input[len(matched_wake_word):].strip()
