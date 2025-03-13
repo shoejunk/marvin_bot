@@ -5,7 +5,7 @@ Marvin is a voice-activated assistant inspired by the paranoid android from "The
 ## Features
 
 - **Voice Recognition**: Responds to wake words like "Marvin," "Computer," "PC," etc.
-- **Smart Home Control**: Integration with Meross smart devices
+- **Smart Home Control**: Integration with Home Assistant for controlling various smart home devices
 - **Music Control**: Spotify integration for playing songs and playlists
 - **File Operations**: Read, write, edit, and manage files in the artifacts directory
 - **Timer Functionality**: Set and manage timers
@@ -19,7 +19,7 @@ Marvin is a voice-activated assistant inspired by the paranoid android from "The
 - Python 3.8 or higher
 - FFmpeg (included in the `bin` directory)
 - An OpenAI API key
-- Meross account (optional, for smart home control)
+- Home Assistant instance (for smart home control)
 - Spotify Developer account (optional, for music playback)
 
 ### Setup Instructions
@@ -42,7 +42,9 @@ Marvin is a voice-activated assistant inspired by the paranoid android from "The
      ```
    - Edit the `.env` file and replace the placeholders with your actual credentials:
      - `OPENAI_API_KEY`: Your OpenAI API key
-     - `MEROSS_EMAIL` and `MEROSS_PASSWORD`: Your Meross account credentials (optional)
+     - `HOME_ASSISTANT_URL`: Your Home Assistant API URL (e.g., "http://your_home_assistant_ip:8123/api")
+     - `HOME_ASSISTANT_TOKEN`: Your Home Assistant long-lived access token
+     - `CHROME_PATH`: Path to your Chrome executable (required for internet browsing)
      - `SPOTIFY_CLIENT_ID`, `SPOTIFY_CLIENT_SECRET`, and `SPOTIFY_REDIRECT_URI`: Your Spotify API credentials (optional)
 
 4. **Run Marvin**:
@@ -63,7 +65,8 @@ Marvin is a voice-activated assistant inspired by the paranoid android from "The
 
 2. **Example Commands**:
    - "Marvin, what time is it?"
-   - "Marvin, turn on the light"
+   - "Marvin, turn on the living room lights"
+   - "Marvin, set the thermostat to 72 degrees"
    - "Marvin, play a song by The Beatles"
    - "Marvin, set a timer for 5 minutes"
    - "Marvin, write a file called notes.txt with content Hello World"
@@ -84,4 +87,4 @@ Marvin runs in the system tray, allowing you to:
 
 ## License
 
-See the LICENSE file for details.
+MIT. See the LICENSE file for details.

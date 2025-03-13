@@ -14,7 +14,6 @@ import time
 from speech import transcribe_speech_to_text
 from tts import speak_text
 from llm import get_ai_response
-from meross_control import MerossController
 from conversation_history import update_history
 from spotify import SpotifyClient
 from file_operations import FileOperations
@@ -54,10 +53,8 @@ async def async_main():
     personality = get_personality(active_personality)
     logger.debug(f"Active personality: {personality.name}")
     logger.debug(f"System prompt: {personality.system_prompt}")
-    logger.debug("Initializing Meross Controller...")
     
     # Initialize components
-    meross_controller = await MerossController.init()
     spotify_client = SpotifyClient()
     file_ops = FileOperations()
     logger.debug("File operations initialized with artifacts directory: %s", file_ops.artifacts_dir)
@@ -75,7 +72,6 @@ async def async_main():
     voice_processor.set_wake_word_required(wake_word_required)
     
     action_processor = ActionProcessor(
-        meross_controller=meross_controller,
         spotify_client=spotify_client,
         file_ops=file_ops,
         display=display,

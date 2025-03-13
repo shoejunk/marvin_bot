@@ -12,6 +12,7 @@ logs/
 *.log
 test_output.txt
 settings.json
+persistent_context.json
 
 # windsurf rules
 .windsurfrules

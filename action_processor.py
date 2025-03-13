@@ -25,7 +25,6 @@ logger = get_logger(__name__)
 
 class ActionProcessor:
     def __init__(self, 
-                 meross_controller, 
                  spotify_client, 
                  file_ops, 
                  display, 
@@ -37,7 +36,6 @@ class ActionProcessor:
         Initialize the ActionProcessor with required dependencies.
         
         Args:
-            meross_controller: Controller for Meross smart devices
             spotify_client: Client for Spotify integration
             file_ops: File operations manager
             display: Display interface for UI updates
@@ -46,7 +44,6 @@ class ActionProcessor:
             browser: Browser instance for web browsing (optional)
             voice_processor: VoiceProcessor instance for coordinating wake word settings (optional)
         """
-        self.meross_controller = meross_controller
         self.spotify_client = spotify_client
         self.file_ops = file_ops
         self.display = display
@@ -185,8 +182,6 @@ class ActionProcessor:
                 active_personality = get_active_personality()
                 await self.speak('Shutting down Marvin', personality_name=active_personality)
                 logger.info('Shutting down Marvin...')
-                # Ensure Meross controller is properly shut down
-                await self.meross_controller.shutdown()
                 # Terminate the application
                 os._exit(0)
                 
