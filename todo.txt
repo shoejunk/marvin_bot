@@ -5,3 +5,4 @@
 - Crash can occur when the timer is finished.
 - Feed the results of all Home Assistant actions back to the LLM and have it speak out a concise recap instead of the detailed results.
 - Move LLM choice to .env
+- Dockerize the app
