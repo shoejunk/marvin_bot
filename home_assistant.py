@@ -282,18 +282,38 @@ class HomeAssistantController:
             # Most domain objects have methods like turn_on, turn_off, toggle, etc.
             if hasattr(domain_obj, service):
                 method = getattr(domain_obj, service)
-                method(entity_id=entity_id, **service_data_copy)
+                try:
+                    # Set a timeout for the operation
+                    import asyncio
+                    from concurrent.futures import ThreadPoolExecutor
+                    with ThreadPoolExecutor() as executor:
+                        future = executor.submit(method, entity_id=entity_id, **service_data_copy)
+                        # Wait for 10 seconds max
+                        result = future.result(timeout=10)
+                except TimeoutError:
+                    logger.error(f"Timeout while controlling {entity_id} with service {service}")
+                    return False
             else:
                 # For services that don't match method names directly
                 logger.warning(f"Method {service} not found on domain {domain}, trying generic approach")
-                if service == "turn_on":
-                    domain_obj.turn_on(entity_id=entity_id, **service_data_copy)
-                elif service == "turn_off":
-                    domain_obj.turn_off(entity_id=entity_id, **service_data_copy)
-                elif service == "toggle":
-                    domain_obj.toggle(entity_id=entity_id, **service_data_copy)
-                else:
-                    logger.error(f"Unsupported service: {service} for domain {domain}")
+                try:
+                    # Set a timeout for the operation
+                    import asyncio
+                    from concurrent.futures import ThreadPoolExecutor
+                    with ThreadPoolExecutor() as executor:
+                        if service == "turn_on":
+                            future = executor.submit(domain_obj.turn_on, entity_id=entity_id, **service_data_copy)
+                        elif service == "turn_off":
+                            future = executor.submit(domain_obj.turn_off, entity_id=entity_id, **service_data_copy)
+                        elif service == "toggle":
+                            future = executor.submit(domain_obj.toggle, entity_id=entity_id, **service_data_copy)
+                        else:
+                            logger.error(f"Unsupported service: {service} for domain {domain}")
+                            return False
+                        # Wait for 10 seconds max
+                        result = future.result(timeout=10)
+                except TimeoutError:
+                    logger.error(f"Timeout while controlling {entity_id} with service {service}")
                     return False
             
             logger.info(f"Successfully controlled {entity_id} with service {service}")
@@ -318,13 +338,25 @@ class HomeAssistantController:
         
         try:
             # Get all states and filter for the one we want
-            states = self.client.get_states()
-            for state in states:
-                if state.entity_id == entity_id:
-                    return state.dict()
+            import asyncio
+            from concurrent.futures import ThreadPoolExecutor
             
-            logger.error(f"Entity {entity_id} not found in states")
-            return None
+            try:
+                with ThreadPoolExecutor() as executor:
+                    future = executor.submit(self.client.get_states)
+                    # Wait for 10 seconds max
+                    states = future.result(timeout=10)
+                    
+                    for state in states:
+                        if state.entity_id == entity_id:
+                            return state.dict()
+                
+                logger.error(f"Entity {entity_id} not found in states")
+                return None
+            except TimeoutError:
+                logger.error(f"Timeout while getting states for entity {entity_id}")
+                return None
+                
         except Exception as e:
             logger.error(f"Failed to get entity state: {e}")
             return None

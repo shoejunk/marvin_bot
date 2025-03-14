@@ -598,8 +598,28 @@ class ActionProcessor:
                         
                     params_dict[param_name] = param_value
         
-        # Call Home Assistant handler
-        await self.home_assistant.handle_action('control_entity', params_dict)
+        # Call Home Assistant handler with timeout protection
+        try:
+            import asyncio
+            # Create a task for the action and wait for it with a timeout
+            action_task = asyncio.create_task(self.home_assistant.handle_action('control_entity', params_dict))
+            # Wait for 20 seconds max (longer than the handler's internal timeout)
+            result = await asyncio.wait_for(action_task, timeout=20)
+            
+            # Check if the action was successful
+            if not result.get('success', False):
+                error_message = result.get('message', 'Unknown error')
+                logger.error(f"Home Assistant control_entity action failed: {error_message}")
+                await self.speak(f"I had trouble controlling {entity_id}. {error_message}", 
+                                personality_name=active_personality)
+        except asyncio.TimeoutError:
+            logger.error(f"Timeout while executing Home Assistant control_entity action for {entity_id}")
+            await self.speak(f"I'm sorry, the request to control {entity_id} timed out. Please try again later.", 
+                            personality_name=active_personality)
+        except Exception as e:
+            logger.error(f"Error executing Home Assistant control_entity action: {str(e)}")
+            await self.speak(f"I encountered an error while trying to control {entity_id}: {str(e)}", 
+                            personality_name=active_personality)
         
     # Timer functions
     async def set_timer(self, duration: str):

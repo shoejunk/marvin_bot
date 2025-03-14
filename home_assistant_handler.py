@@ -89,6 +89,33 @@ class HomeAssistantHandler:
             if not connected:
                 return {"success": False, "message": "Failed to connect to Home Assistant"}
         
+        # Set a timeout for the entire action
+        import asyncio
+        try:
+            # Create a task for the action and wait for it with a timeout
+            action_task = asyncio.create_task(self._execute_action(action, parameters))
+            # Wait for 15 seconds max
+            return await asyncio.wait_for(action_task, timeout=15)
+        except asyncio.TimeoutError:
+            logger.error(f"Timeout while executing Home Assistant action: {action}")
+            # If the action timed out, we should speak to the user
+            if self.speak_function:
+                active_personality = get_active_personality()
+                await self.speak_function(f"I'm sorry, the Home Assistant action {action} timed out. Please try again later.", 
+                                         personality_name=active_personality)
+            return {"success": False, "message": f"Action {action} timed out"}
+    
+    async def _execute_action(self, action: str, parameters: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Execute a Home Assistant action with the given parameters.
+        
+        Args:
+            action: The action to perform
+            parameters: Parameters for the action
+            
+        Returns:
+            Dict[str, Any]: Result of the action
+        """
         # Handle different actions
         if action == "set_thermostat":
             return await self.set_thermostat(parameters)
