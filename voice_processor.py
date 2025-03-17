@@ -101,7 +101,6 @@ class VoiceProcessor:
                         break
                         
                 if not matched_wake_word:
-                    play_waiting_sound_once("low_beep.mp3")
                     logger.info("Waiting for wake word...")
                     return None, False
                 
@@ -121,11 +120,9 @@ class VoiceProcessor:
                 return command, False
                 
         except TimeoutError:
-            play_waiting_sound_once("low_beep.mp3")
             logger.error("Error: Connection timed out while transcribing speech.")
             return None, False
         except Exception as e:
-            play_waiting_sound_once("low_beep.mp3")
             logger.error(f"An unexpected error occurred: {e}")
             return None, False
             
