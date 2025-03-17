@@ -771,7 +771,7 @@ class ActionProcessor:
         if self.add_to_speech_queue:
             await self.add_to_speech_queue(text, personality_name=personality_name)
         else:
-            await self.speak(text, personality_name=personality_name)
+            logger.error("No add_to_speech_queue function provided")
 
     def get_last_user_input(self):
         """Get the last user input from conversation history"""

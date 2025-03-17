@@ -47,11 +47,15 @@ logger.debug("Main module initialized")
 # Initialize display
 display = Display()
 
+speech_queue = []
+
 async def add_to_speech_queue(text, personality_name=None):
-    """Add text to the speech queue and speak it immediately"""
-    logger.debug(f"Speaking text: {text}")
-    # Speak the text directly - no queue needed since we're processing synchronously
-    await speak_text(text, personality_name=personality_name)
+    speech_queue.append((text, personality_name))
+
+async def process_speech_queue():
+    while speech_queue:
+        text, personality_name = speech_queue.pop(0)
+        await speak_text(text, personality_name=personality_name)
 
 async def async_main():
     """Main asynchronous function that runs the assistant."""
@@ -135,8 +139,13 @@ async def async_main():
         logger.info(f"Active personality is {personality.name}")
         
         while True:
+            logger.info(f"Processing speech queue")
+            await process_speech_queue()
+
             # Process voice input
+            logger.info(f"Processing voice input")
             command, wake_word_detected = await voice_processor.process_voice_input()
+            logger.info(f"Done processing voice input")
             
             if not command:
                 continue
