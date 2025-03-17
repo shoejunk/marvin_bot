@@ -31,7 +31,8 @@ class ActionProcessor:
                  speak_function, 
                  update_history_function,
                  browser=None,
-                 voice_processor=None):
+                 voice_processor=None,
+                 add_to_speech_queue_function=None):
         """
         Initialize the ActionProcessor with required dependencies.
         
@@ -43,6 +44,7 @@ class ActionProcessor:
             update_history_function: Function to update conversation history
             browser: Browser instance for web browsing (optional)
             voice_processor: VoiceProcessor instance for coordinating wake word settings (optional)
+            add_to_speech_queue_function: Function to add text to speech queue (optional)
         """
         self.spotify_client = spotify_client
         self.file_ops = file_ops
@@ -52,6 +54,7 @@ class ActionProcessor:
         self.browser = browser
         self.timer_counter = 0
         self.voice_processor = voice_processor
+        self.add_to_speech_queue = add_to_speech_queue_function
         
         # Initialize Home Assistant handler
         from home_assistant_handler import HomeAssistantHandler
@@ -63,12 +66,11 @@ class ActionProcessor:
     def set_wake_word_required(self, required: bool):
         """Set whether wake word is required."""
         self.wake_word_required = required
-        # Also update the voice processor if it's available
+        # Update the voice processor if it exists
         if self.voice_processor:
             self.voice_processor.set_wake_word_required(required)
-            logger.info(f"Updated wake_word_required in VoiceProcessor to {required}")
-        
-    def get_wake_word_required(self) -> bool:
+            
+    def get_wake_word_required(self):
         """Get whether wake word is required."""
         return self.wake_word_required
         
@@ -80,243 +82,251 @@ class ActionProcessor:
             actions: List of action dictionaries with name and parameters
             update_setting_function: Function to update persistent settings (optional)
         """
-        # Skip any change_personality actions as they are handled in main.py
-        filtered_actions = [action for action in actions if action.get("name", "").lower() != "change_personality"]
+        active_personality = get_active_personality()
         
-        for action_item in filtered_actions:
-            action_name = action_item.get("name", "").lower()
-            params = action_item.get("parameters", [])
+        if not actions:
+            logger.debug("No actions to process")
+            return
             
-            # Log the action
-            if params:
-                logger.info(f"Processing action: {action_name} with params: {params}")
-                self.display.add_conversation(f"Action: {action_name} with params: {params}")
-                self.update_history(f"Action: {action_name} with params: {params}", "")
-            else:
-                logger.info(f"Processing action: {action_name}")
-                self.display.add_conversation(f"Action: {action_name}")
-                self.update_history(f"Action: {action_name}", "")
+        for action in actions:
+            action_name = action.get('name', '')
+            params = action.get('parameters', [])
             
-            # Handle wake word toggle actions
-            if action_name == "wake_word_off":
-                self.set_wake_word_required(False)  # Use the method to ensure voice_processor is updated
-                # Save the setting if function provided
-                if update_setting_function:
-                    update_setting_function("wake_word_required", False)
-                logger.info("Wake word requirement turned OFF and saved to settings")
-                self.display.add_conversation("Wake word requirement turned OFF")
-                self.update_history("Wake word requirement turned OFF", "")
-                
-            elif action_name == "wake_word_on":
-                self.set_wake_word_required(True)  # Use the method to ensure voice_processor is updated
-                # Save the setting if function provided
-                if update_setting_function:
-                    update_setting_function("wake_word_required", True)
-                logger.info("Wake word requirement turned ON and saved to settings")
-                self.display.add_conversation("Wake word requirement turned ON")
-                self.update_history("Wake word requirement turned ON", "")
-                
-            # Handle music control actions
-            elif action_name == "play_song":
-                song_name = params[0] if params else ''
-                if song_name:
-                    self.spotify_client.play_track(song_name)
+            logger.info(f"Processing action: {action_name} with parameters: {params}")
+            
+            try:
+                # Handle wake word toggle actions
+                if action_name == 'wake_word_off':
+                    self.set_wake_word_required(False)
+                    if update_setting_function:
+                        update_setting_function("wake_word_required", False)
+                    await self.speak_text("Wake word requirement turned off. You can now speak to me directly.", personality_name=active_personality)
+                    logger.info("Wake word requirement turned OFF")
                     
-            elif action_name == "play_music":
-                song_or_artist = params[0] if params else ''
-                if song_or_artist:
-                    self.spotify_client.play_music(song_or_artist)
+                elif action_name == 'wake_word_on':
+                    self.set_wake_word_required(True)
+                    if update_setting_function:
+                        update_setting_function("wake_word_required", True)
+                    await self.speak_text("Wake word requirement turned on. Please start your requests with my name.", personality_name=active_personality)
+                    logger.info("Wake word requirement turned ON")
+                
+                # Handle music control actions
+                elif action_name == "play_song":
+                    song_name = params[0] if params else ''
+                    if song_name:
+                        self.spotify_client.play_track(song_name)
+                        
+                elif action_name == "play_music":
+                    song_or_artist = params[0] if params else ''
+                    if song_or_artist:
+                        self.spotify_client.play_music(song_or_artist)
+                        
+                elif action_name == "play_playlist":
+                    playlist_name = params[0] if params else ''
+                    if playlist_name:
+                        self.spotify_client.play_playlist(playlist_name)
+                        
+                elif action_name == "pause_music":
+                    self.spotify_client.pause_music()
                     
-            elif action_name == "play_playlist":
-                playlist_name = params[0] if params else ''
-                if playlist_name:
-                    self.spotify_client.play_playlist(playlist_name)
+                elif action_name == "unpause_music" or action_name == "resume_music":
+                    self.spotify_client.resume_music()
                     
-            elif action_name == "pause_music":
-                self.spotify_client.pause_music()
-                
-            elif action_name == "unpause_music" or action_name == "resume_music":
-                self.spotify_client.resume_music()
-                
-            elif action_name == "stop_music":
-                self.spotify_client.stop_music()
-                
-            elif action_name == "next_track":
-                self.spotify_client.next_track()
-                
-            elif action_name == "previous_track":
-                self.spotify_client.previous_track()
-                
-            elif action_name == "volume_up":
-                increment = int(params[0]) if params and params[0].isdigit() else 10
-                self.spotify_client.volume_up(increment)
-                
-            elif action_name == "volume_down":
-                decrement = int(params[0]) if params and params[0].isdigit() else 10
-                self.spotify_client.volume_down(decrement)
-                
-            elif action_name == "adjust_volume":
-                level = params[0] if params else '50'
-                self.spotify_client.adjust_volume(level)
-                
-            # Handle system actions
-            elif action_name == "reboot":
-                logger.info("Rebooting Marvin...")
-                bat_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "run_marvin.bat"))
-                logger.info(f"Running batch file: {bat_path}")
-                subprocess.Popen([bat_path], shell=True, creationflags=subprocess.CREATE_NEW_CONSOLE)
-                os._exit(0)
-                
-            elif action_name == 'set_timer' or action_name == 'start_timer':
-                duration = params[0] if params else ''
-                if duration:
-                    # Replace underscores with spaces if present
-                    duration = duration.replace('_', ' ')
-                    logger.info(f"Setting timer with cleaned duration: '{duration}'")
-                    asyncio.create_task(self.set_timer(duration))
+                elif action_name == "stop_music":
+                    self.spotify_client.stop_music()
                     
-            elif action_name == 'stop_timer':
-                await self.stop_timer()
-                
-            elif action_name == 'shut_down':
-                active_personality = get_active_personality()
-                await self.speak('Shutting down Marvin', personality_name=active_personality)
-                logger.info('Shutting down Marvin...')
-                # Terminate the application
-                os._exit(0)
-                
-            elif action_name == 'get_time':
-                await self._handle_get_time()
-                
-            # Handle Home Assistant actions
-            elif action_name == 'list_climate_devices':
-                await self._handle_list_climate_devices()
-                
-            elif action_name == 'get_smart_devices':
-                await self._handle_get_smart_devices()
-                
-            elif action_name == 'get_weather':
-                await self._handle_get_weather(params)
-                
-            elif action_name == 'control_entity':
-                await self._handle_control_entity(params)
-                
-            # File operation actions
-            elif action_name == 'read_file':
-                await self._handle_read_file(params)
-                
-            elif action_name == 'write_file':
-                await self._handle_write_file(params)
-                
-            elif action_name == 'list_files':
-                await self._handle_list_files(params)
-                
-            elif action_name == 'delete_file':
-                await self._handle_delete_file(params)
-                
-            elif action_name == 'append_to_file':
-                await self._handle_append_to_file(params)
-                
-            elif action_name == 'edit_file':
-                await self._handle_edit_file(params)
-                
-            elif action_name == 'create_directory':
-                await self._handle_create_directory(params)
-                
-            elif action_name == 'copy_file':
-                await self._handle_copy_file(params)
-                
-            elif action_name == 'move_file':
-                await self._handle_move_file(params)
-                
-            elif action_name == 'search_files':
-                await self._handle_search_files(params)
-                
-            elif action_name == 'dictate':
-                from dictate import handle_dictate
-                dictate_text = params[0] if params else ""
-                handle_dictate(dictate_text)
-                
-            elif action_name == 'write_code':
-                await self._handle_write_code(params)
-                
-            # Browser use action
-            elif action_name == 'browse_internet':
-                await self._handle_browse_internet(params)
-                
-            else:
-                logger.warning(f"Unknown action: {action_name}")
-                self.display.add_conversation(f"Unknown action: {action_name}")
+                elif action_name == "next_track":
+                    self.spotify_client.next_track()
+                    
+                elif action_name == "previous_track":
+                    self.spotify_client.previous_track()
+                    
+                elif action_name == "volume_up":
+                    increment = int(params[0]) if params and params[0].isdigit() else 10
+                    self.spotify_client.volume_up(increment)
+                    
+                elif action_name == "volume_down":
+                    decrement = int(params[0]) if params and params[0].isdigit() else 10
+                    self.spotify_client.volume_down(decrement)
+                    
+                elif action_name == "adjust_volume":
+                    level = params[0] if params else '50'
+                    self.spotify_client.adjust_volume(level)
+                    
+                # Handle system actions
+                elif action_name == "reboot":
+                    logger.info("Rebooting Marvin...")
+                    bat_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "run_marvin.bat"))
+                    logger.info(f"Running batch file: {bat_path}")
+                    subprocess.Popen([bat_path], shell=True, creationflags=subprocess.CREATE_NEW_CONSOLE)
+                    os._exit(0)
+                    
+                elif action_name == 'set_timer' or action_name == 'start_timer':
+                    duration = params[0] if params else ''
+                    if duration:
+                        # Replace underscores with spaces if present
+                        duration = duration.replace('_', ' ')
+                        logger.info(f"Setting timer with cleaned duration: '{duration}'")
+                        asyncio.create_task(self.set_timer(duration))
+                        
+                elif action_name == 'stop_timer':
+                    await self.stop_timer()
+                    
+                elif action_name == 'shut_down':
+                    active_personality = get_active_personality()
+                    await self.speak_text('Shutting down Marvin', personality_name=active_personality)
+                    logger.info('Shutting down Marvin...')
+                    # Terminate the application
+                    os._exit(0)
+                    
+                elif action_name == 'get_time':
+                    await self._handle_get_time()
+                    
+                # Handle Home Assistant actions
+                elif action_name == 'list_climate_devices':
+                    await self._handle_list_climate_devices()
+                    
+                elif action_name == 'get_smart_devices':
+                    await self._handle_get_smart_devices()
+                    
+                elif action_name == 'get_weather':
+                    await self._handle_get_weather(params)
+                    
+                elif action_name == 'control_entity':
+                    await self._handle_control_entity(params)
+                    
+                # File operation actions
+                elif action_name == 'read_file':
+                    await self._handle_read_file(params)
+                    
+                elif action_name == 'write_file':
+                    await self._handle_write_file(params)
+                    
+                elif action_name == 'list_files':
+                    await self._handle_list_files(params)
+                    
+                elif action_name == 'delete_file':
+                    await self._handle_delete_file(params)
+                    
+                elif action_name == 'append_to_file':
+                    await self._handle_append_to_file(params)
+                    
+                elif action_name == 'edit_file':
+                    await self._handle_edit_file(params)
+                    
+                elif action_name == 'create_directory':
+                    await self._handle_create_directory(params)
+                    
+                elif action_name == 'copy_file':
+                    await self._handle_copy_file(params)
+                    
+                elif action_name == 'move_file':
+                    await self._handle_move_file(params)
+                    
+                elif action_name == 'search_files':
+                    await self._handle_search_files(params)
+                    
+                elif action_name == 'dictate':
+                    from dictate import handle_dictate
+                    dictate_text = params[0] if params else ""
+                    handle_dictate(dictate_text)
+                    
+                elif action_name == 'write_code':
+                    await self._handle_write_code(params)
+                    
+                # Browser use action
+                elif action_name == 'browse_internet':
+                    await self._handle_browse_internet(params)
+                    
+                else:
+                    logger.warning(f"Unknown action: {action_name}")
+                    self.display.add_conversation(f"Unknown action: {action_name}")
+            
+            except Exception as e:
+                logger.error(f"Error processing action: {e}")
+                self.display.add_conversation(f"Error processing action: {e}")
         
         return None  # No special signal
 
     # File operation handlers
     async def _handle_read_file(self, params):
+        """Handle reading a file and speaking its contents."""
         active_personality = get_active_personality()
-        filename = params[0] if params else None
-        if filename:
-            content = self.file_ops.read_file(filename)
-            if content is not None:
-                # Add file content to conversation history but don't display it
-                self.update_history(f"Content of file {filename}:\n{content}", "")
-                # Inform the user that the file has been read
-                await self.speak(f"I've read the file {filename} and added its content to my context.", personality_name=active_personality)
-            else:
-                await self.speak(f"Could not read file {filename}", personality_name=active_personality)
-        else:
-            await self.speak("No filename specified for reading", personality_name=active_personality)
-    
-    async def _handle_write_file(self, params):
-        active_personality = get_active_personality()
-        if len(params) >= 2:
-            filename = params[0]
-            content = params[1]
-            # Handle overwrite parameter which could be a boolean or string
-            if len(params) <= 2:
-                overwrite = True
-            else:
-                # Check if it's already a boolean
-                if isinstance(params[2], bool):
-                    overwrite = params[2]
-                # If it's a string, convert to boolean
-                elif isinstance(params[2], str):
-                    overwrite = params[2].lower() == 'true'
-                else:
-                    # Default to True for any other case
-                    overwrite = True
+        if not params or len(params) < 1:
+            await self.speak_text("I need a filename to read.", personality_name=active_personality)
+            return
             
-            success = self.file_ops.write_file(filename, content, overwrite)
-            if success:
-                await self.speak(f"Successfully wrote to file {filename}", personality_name=active_personality)
+        filename = params[0]
+        try:
+            content = self.file_ops.read_file(filename)
+            if content:
+                # Add to conversation display
+                self.display.add_conversation(f"Contents of {filename}:\n{content}", speaker='assistant')
+                
+                # Update history with full results
+                self.update_history(f"Contents of {filename}:\n{content}", "")
+                
+                # Speak a confirmation
+                await self.speak_text(f"Here's the content of {filename}", personality_name=active_personality)
             else:
-                await self.speak(f"Failed to write to file {filename}", personality_name=active_personality)
-        else:
-            await self.speak("Insufficient parameters for writing a file", personality_name=active_personality)
-    
+                error_message = f"File {filename} is empty or does not exist."
+                self.display.add_conversation(f"❌ {error_message}", speaker='assistant')
+                self.update_history(f"❌ {error_message}", "")
+                await self.speak_text(error_message, personality_name=active_personality)
+        except Exception as e:
+            error_message = f"Error reading file {filename}: {e}"
+            logger.error(error_message)
+            self.display.add_conversation(f"❌ {error_message}", speaker='assistant')
+            self.update_history(f"❌ {error_message}", "")
+            await self.speak_text(f"I encountered an error reading {filename}.", personality_name=active_personality)
+
+    async def _handle_write_file(self, params):
+        """Handle writing content to a file."""
+        active_personality = get_active_personality()
+        if not params or len(params) < 2:
+            await self.speak_text("I need a filename and content to write.", personality_name=active_personality)
+            return
+            
+        filename = params[0]
+        content = params[1]
+        
+        try:
+            self.file_ops.write_file(filename, content)
+            success_message = f"Successfully wrote to {filename}."
+            self.display.add_conversation(success_message, speaker='assistant')
+            self.update_history(success_message, "")
+            await self.speak_text(success_message, personality_name=active_personality)
+        except Exception as e:
+            error_message = f"Error writing to file {filename}: {e}"
+            logger.error(error_message)
+            self.display.add_conversation(f"❌ {error_message}", speaker='assistant')
+            self.update_history(f"❌ {error_message}", "")
+            await self.speak_text(f"I encountered an error writing to {filename}.", personality_name=active_personality)
+
     async def _handle_list_files(self, params):
         active_personality = get_active_personality()
         subdirectory = params[0] if params else ""
         files = self.file_ops.list_files(subdirectory)
         if files:
             files_str = ", ".join(files)
-            await self.speak(f"Files in {subdirectory or 'artifacts directory'}: {files_str}", personality_name=active_personality)
+            await self.speak_text(f"Files in {subdirectory or 'artifacts directory'}: {files_str}", personality_name=active_personality)
             self.update_history(f"Files in {subdirectory or 'artifacts directory'}: {files_str}", "")
         else:
-            await self.speak(f"No files found in {subdirectory or 'artifacts directory'}", personality_name=active_personality)
+            await self.speak_text(f"No files found in {subdirectory or 'artifacts directory'}", personality_name=active_personality)
             self.update_history(f"No files found in {subdirectory or 'artifacts directory'}", "")
-    
+
     async def _handle_delete_file(self, params):
         active_personality = get_active_personality()
         filename = params[0] if params else None
         if filename:
             success = self.file_ops.delete_file(filename)
             if success:
-                await self.speak(f"Successfully deleted file {filename}", personality_name=active_personality)
+                await self.speak_text(f"Successfully deleted file {filename}", personality_name=active_personality)
             else:
-                await self.speak(f"Failed to delete file {filename}", personality_name=active_personality)
+                await self.speak_text(f"Failed to delete file {filename}", personality_name=active_personality)
         else:
-            await self.speak("No filename specified for deletion", personality_name=active_personality)
-    
+            await self.speak_text("No filename specified for deletion", personality_name=active_personality)
+
     async def _handle_append_to_file(self, params):
         active_personality = get_active_personality()
         if len(params) >= 2:
@@ -338,12 +348,12 @@ class ActionProcessor:
                     
             success = self.file_ops.append_to_file(filename, content, create_if_missing)
             if success:
-                await self.speak(f"Successfully appended to file {filename}", personality_name=active_personality)
+                await self.speak_text(f"Successfully appended to file {filename}", personality_name=active_personality)
             else:
-                await self.speak(f"Failed to append to file {filename}", personality_name=active_personality)
+                await self.speak_text(f"Failed to append to file {filename}", personality_name=active_personality)
         else:
-            await self.speak("Insufficient parameters for appending to a file", personality_name=active_personality)
-    
+            await self.speak_text("Insufficient parameters for appending to a file", personality_name=active_personality)
+
     async def _handle_edit_file(self, params):
         active_personality = get_active_personality()
         if len(params) >= 3:
@@ -352,24 +362,24 @@ class ActionProcessor:
             replace_text = params[2]
             success = self.file_ops.edit_file(filename, find_text, replace_text)
             if success:
-                await self.speak(f"Successfully edited file {filename}", personality_name=active_personality)
+                await self.speak_text(f"Successfully edited file {filename}", personality_name=active_personality)
             else:
-                await self.speak(f"Failed to edit file {filename}", personality_name=active_personality)
+                await self.speak_text(f"Failed to edit file {filename}", personality_name=active_personality)
         else:
-            await self.speak("Insufficient parameters for editing a file", personality_name=active_personality)
-    
+            await self.speak_text("Insufficient parameters for editing a file", personality_name=active_personality)
+
     async def _handle_create_directory(self, params):
         active_personality = get_active_personality()
         directory_name = params[0] if params else None
         if directory_name:
             success = self.file_ops.create_directory(directory_name)
             if success:
-                await self.speak(f"Successfully created directory {directory_name}", personality_name=active_personality)
+                await self.speak_text(f"Successfully created directory {directory_name}", personality_name=active_personality)
             else:
-                await self.speak(f"Failed to create directory {directory_name}", personality_name=active_personality)
+                await self.speak_text(f"Failed to create directory {directory_name}", personality_name=active_personality)
         else:
-            await self.speak("No directory name specified for creation", personality_name=active_personality)
-    
+            await self.speak_text("No directory name specified for creation", personality_name=active_personality)
+
     async def _handle_copy_file(self, params):
         active_personality = get_active_personality()
         if len(params) >= 2:
@@ -377,12 +387,12 @@ class ActionProcessor:
             destination = params[1]
             success = self.file_ops.copy_file(source, destination)
             if success:
-                await self.speak(f"Successfully copied file from {source} to {destination}", personality_name=active_personality)
+                await self.speak_text(f"Successfully copied file from {source} to {destination}", personality_name=active_personality)
             else:
-                await self.speak(f"Failed to copy file from {source} to {destination}", personality_name=active_personality)
+                await self.speak_text(f"Failed to copy file from {source} to {destination}", personality_name=active_personality)
         else:
-            await self.speak("Insufficient parameters for copying a file", personality_name=active_personality)
-    
+            await self.speak_text("Insufficient parameters for copying a file", personality_name=active_personality)
+
     async def _handle_move_file(self, params):
         active_personality = get_active_personality()
         if len(params) >= 2:
@@ -390,12 +400,12 @@ class ActionProcessor:
             destination = params[1]
             success = self.file_ops.move_file(source, destination)
             if success:
-                await self.speak(f"Successfully moved file from {source} to {destination}", personality_name=active_personality)
+                await self.speak_text(f"Successfully moved file from {source} to {destination}", personality_name=active_personality)
             else:
-                await self.speak(f"Failed to move file from {source} to {destination}", personality_name=active_personality)
+                await self.speak_text(f"Failed to move file from {source} to {destination}", personality_name=active_personality)
         else:
-            await self.speak("Insufficient parameters for moving a file", personality_name=active_personality)
-    
+            await self.speak_text("Insufficient parameters for moving a file", personality_name=active_personality)
+
     async def _handle_search_files(self, params):
         active_personality = get_active_personality()
         if len(params) >= 1:
@@ -404,14 +414,14 @@ class ActionProcessor:
             results = self.file_ops.search_files(search_text, subdirectory)
             if results:
                 results_str = ", ".join(results)
-                await self.speak(f"Found {len(results)} files containing '{search_text}': {results_str}", personality_name=active_personality)
+                await self.speak_text(f"Found {len(results)} files containing '{search_text}': {results_str}", personality_name=active_personality)
                 self.update_history(f"Files containing '{search_text}': {results_str}", "")
             else:
-                await self.speak(f"No files found containing '{search_text}'", personality_name=active_personality)
+                await self.speak_text(f"No files found containing '{search_text}'", personality_name=active_personality)
                 self.update_history(f"No files found containing '{search_text}'", "")
         else:
-            await self.speak("No search text specified", personality_name=active_personality)
-    
+            await self.speak_text("No search text specified", personality_name=active_personality)
+
     async def _handle_write_code(self, params):
         active_personality = get_active_personality()
         if len(params) >= 2:
@@ -419,16 +429,16 @@ class ActionProcessor:
             code_content = params[1]
             success = self.file_ops.write_file(filename, code_content, True)
             if success:
-                await self.speak(f"Successfully wrote code to file {filename}", personality_name=active_personality)
+                await self.speak_text(f"Successfully wrote code to file {filename}", personality_name=active_personality)
             else:
-                await self.speak(f"Failed to write code to file {filename}", personality_name=active_personality)
+                await self.speak_text(f"Failed to write code to file {filename}", personality_name=active_personality)
         else:
-            await self.speak("Insufficient parameters for writing code", personality_name=active_personality)
-    
+            await self.speak_text("Insufficient parameters for writing code", personality_name=active_personality)
+
     async def _handle_browse_internet(self, params):
         active_personality = get_active_personality()
         if not self.browser:
-            await self.speak("Browser functionality is not available", personality_name=active_personality)
+            await self.speak_text("Browser functionality is not available", personality_name=active_personality)
             return
             
         query = params[0] if params else None
@@ -493,26 +503,26 @@ class ActionProcessor:
                         self.update_history(result_text, "")
                         
                         # Speak the summarized version
-                        await self.speak(summary_text, personality_name=active_personality)
+                        await self.speak_text(summary_text, personality_name=active_personality)
                     except json.JSONDecodeError:
                         # Fallback if JSON parsing fails
                         logger.error("Failed to parse summary response as JSON")
                         self.display.add_conversation(result_text, speaker='assistant')
                         self.update_history(result_text, "")
-                        await self.speak("I found some information, but couldn't properly format it.", personality_name=active_personality)
+                        await self.speak_text("I found some information, but couldn't properly format it.", personality_name=active_personality)
                 else:
                     # Default message if we couldn't capture a result
                     self.display.add_conversation("Browser search complete, but couldn't extract specific results.", speaker='assistant')
                     self.update_history("Browser search complete, but couldn't extract specific results.", "")
-                    await self.speak("Browser search complete, but I couldn't extract specific results.", personality_name=active_personality)
+                    await self.speak_text("Browser search complete, but I couldn't extract specific results.", personality_name=active_personality)
             except Exception as e:
                 error_message = f"Error during browser search: {e}"
                 logger.error(error_message)
                 self.display.add_conversation(f"❌ {error_message}", speaker='assistant')
                 self.update_history(f"❌ {error_message}", "")
-                await self.speak("I encountered an error while browsing the internet.", personality_name=active_personality)
+                await self.speak_text("I encountered an error while browsing the internet.", personality_name=active_personality)
         else:
-            await self.speak("No search query specified for browsing the internet.", personality_name=active_personality)
+            await self.speak_text("No search query specified for browsing the internet.", personality_name=active_personality)
             self.display.add_conversation("No search query specified for browsing the internet.", speaker='assistant')
             self.update_history("No search query specified for browsing the internet.", "")
 
@@ -522,14 +532,14 @@ class ActionProcessor:
         if self.home_assistant:
             await self.home_assistant.handle_action('list_climate_devices', {})
         else:
-            await self.speak("Home Assistant is not configured.", personality_name=active_personality)
+            await self.speak_text("Home Assistant is not configured.", personality_name=active_personality)
             
     async def _handle_get_smart_devices(self):
         active_personality = get_active_personality()
         if self.home_assistant:
             await self.home_assistant.handle_action('get_smart_devices', {})
         else:
-            await self.speak("Home Assistant is not configured.", personality_name=active_personality)
+            await self.speak_text("Home Assistant is not configured.", personality_name=active_personality)
             
     async def _handle_get_weather(self, params):
         """Handle getting weather information from Home Assistant.
@@ -550,7 +560,7 @@ class ActionProcessor:
             # Call Home Assistant handler
             await self.home_assistant.handle_action('get_weather', params_dict)
         else:
-            await self.speak("Home Assistant is not configured.", personality_name=active_personality)
+            await self.speak_text("Home Assistant is not configured.", personality_name=active_personality)
             
     async def _handle_control_entity(self, params):
         """Handle controlling any entity in Home Assistant.
@@ -560,11 +570,11 @@ class ActionProcessor:
         """
         active_personality = get_active_personality()
         if not self.home_assistant:
-            await self.speak("Home Assistant is not configured.", personality_name=active_personality)
+            await self.speak_text("Home Assistant is not configured.", personality_name=active_personality)
             return
             
         if len(params) < 2:
-            await self.speak("Not enough parameters for control_entity action. Need at least entity_id and service.", 
+            await self.speak_text("Not enough parameters for control_entity action. Need at least entity_id and service.", 
                             personality_name=active_personality)
             return
             
@@ -610,15 +620,15 @@ class ActionProcessor:
             if not result.get('success', False):
                 error_message = result.get('message', 'Unknown error')
                 logger.error(f"Home Assistant control_entity action failed: {error_message}")
-                await self.speak(f"I had trouble controlling {entity_id}. {error_message}", 
+                await self.speak_text(f"I had trouble controlling {entity_id}. {error_message}", 
                                 personality_name=active_personality)
         except asyncio.TimeoutError:
             logger.error(f"Timeout while executing Home Assistant control_entity action for {entity_id}")
-            await self.speak(f"I'm sorry, the request to control {entity_id} timed out. Please try again later.", 
+            await self.speak_text(f"I'm sorry, the request to control {entity_id} timed out. Please try again later.", 
                             personality_name=active_personality)
         except Exception as e:
             logger.error(f"Error executing Home Assistant control_entity action: {str(e)}")
-            await self.speak(f"I encountered an error while trying to control {entity_id}: {str(e)}", 
+            await self.speak_text(f"I encountered an error while trying to control {entity_id}: {str(e)}", 
                             personality_name=active_personality)
         
     # Timer functions
@@ -640,7 +650,7 @@ class ActionProcessor:
                     logger.debug(f"Parsed as two parts: value={value}, unit={unit_input}")
                 except ValueError as e:
                     logger.error(f"Error parsing value: {e}")
-                    await self.speak('Invalid timer format. The value must be a number.', personality_name=active_personality)
+                    await self.speak_text('Invalid timer format. The value must be a number.', personality_name=active_personality)
                     return
             else:
                 # Try to parse the duration as a single value
@@ -661,11 +671,11 @@ class ActionProcessor:
                             logger.debug(f"Parsed with regex: value={value}, unit={unit_input}")
                         except ValueError as e:
                             logger.error(f"Error parsing regex match: {e}")
-                            await self.speak('Invalid timer format. Use format like "5 minutes" or "5m".', personality_name=active_personality)
+                            await self.speak_text('Invalid timer format. Use format like "5 minutes" or "5m".', personality_name=active_personality)
                             return
                     else:
                         logger.error(f"Could not parse timer format: '{duration}'")
-                        await self.speak('Invalid timer format. Use format like "5 minutes" or "5m".', personality_name=active_personality)
+                        await self.speak_text('Invalid timer format. Use format like "5 minutes" or "5m".', personality_name=active_personality)
                         return
             
             # Map any unit format to a standardized format
@@ -681,7 +691,7 @@ class ActionProcessor:
                 logger.debug(f"Mapped '{unit_input}' to '{unit}'")
             else:
                 logger.error(f"Unknown time unit: '{unit_input}'")
-                await self.speak(f'Invalid time unit: "{unit_input}". Use seconds, minutes, or hours.', personality_name=active_personality)
+                await self.speak_text(f'Invalid time unit: "{unit_input}". Use seconds, minutes, or hours.', personality_name=active_personality)
                 return
                 
             # Check if unit is valid (should always be valid after mapping)
@@ -704,14 +714,16 @@ class ActionProcessor:
                 self.display.add_timer(timer_name, timedelta(seconds=seconds_value))
                 await asyncio.sleep(seconds_value)
                 self.display.remove_timer(timer_name)
-                await self.speak('Timer complete!', personality_name=active_personality)
+                
+                # Use our helper method to speak the text
+                await self.speak_text('Timer complete!', personality_name=active_personality)
             else:
                 # This should never happen with our mapping
                 logger.error(f"Unexpected error: Unit '{unit}' not in valid_units after mapping")
-                await self.speak('Invalid time unit. Use seconds, minutes, or hours.', personality_name=active_personality)
+                await self.speak_text('Invalid time unit. Use seconds, minutes, or hours.', personality_name=active_personality)
         except Exception as e:
             logger.error(f'Error setting timer: {e}', exc_info=True)
-            await self.speak('Error setting timer.', personality_name=active_personality)
+            await self.speak_text('Error setting timer.', personality_name=active_personality)
 
     async def stop_timer(self):
         """Stop all active timers."""
@@ -720,6 +732,7 @@ class ActionProcessor:
         for tname in active_timers:
             self.display.remove_timer(tname)
         logger.info('All timers stopped')
+        await self.speak_text('All timers stopped.', personality_name=get_active_personality())
         
     async def _handle_get_time(self):
         """Get the current time and speak it to the user."""
@@ -737,14 +750,28 @@ class ActionProcessor:
             # Update history with full results
             self.update_history(time_message, "")
             
-            # Speak the time
-            await self.speak(time_message, personality_name=active_personality)
+            # Speak the time using our helper method
+            await self.speak_text(time_message, personality_name=active_personality)
             
         except Exception as e:
             error_message = f"Error getting time: {e}"
             logger.error(error_message)
             self.display.add_conversation(f"❌ {error_message}", speaker='assistant')
             self.update_history(f"❌ {error_message}", "")
+            await self.speak_text(f"I encountered an error getting the time.", personality_name=active_personality)
+
+    async def speak_text(self, text, personality_name=None):
+        """
+        Speak text using the speech queue if available, otherwise use direct speech.
+        
+        Args:
+            text: The text to speak
+            personality_name: The personality to use for speaking
+        """
+        if self.add_to_speech_queue:
+            await self.add_to_speech_queue(text, personality_name=personality_name)
+        else:
+            await self.speak(text, personality_name=personality_name)
 
     def get_last_user_input(self):
         """Get the last user input from conversation history"""

@@ -11,6 +11,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import asyncio
 import json
 import time
+from collections import deque
 from speech import transcribe_speech_to_text
 from tts import speak_text
 from llm import get_ai_response
@@ -46,6 +47,12 @@ logger.debug("Main module initialized")
 # Initialize display
 display = Display()
 
+async def add_to_speech_queue(text, personality_name=None):
+    """Add text to the speech queue and speak it immediately"""
+    logger.debug(f"Speaking text: {text}")
+    # Speak the text directly - no queue needed since we're processing synchronously
+    await speak_text(text, personality_name=personality_name)
+
 async def async_main():
     """Main asynchronous function that runs the assistant."""
     # Get active personality
@@ -78,7 +85,8 @@ async def async_main():
         speak_function=speak_text,
         update_history_function=update_history,
         browser=browser,
-        voice_processor=voice_processor
+        voice_processor=voice_processor,
+        add_to_speech_queue_function=add_to_speech_queue
     )
     action_processor.set_wake_word_required(wake_word_required)
     
@@ -122,7 +130,7 @@ async def async_main():
     
     try:
         # Initialize with the active personality's name
-        await speak_text(f"{personality.name} online", personality_name=active_personality)
+        await add_to_speech_queue(f"{personality.name} online", personality_name=active_personality)
         logger.info(f"Wake word requirement is currently {'ON' if wake_word_required else 'OFF'}")
         logger.info(f"Active personality is {personality.name}")
         
@@ -178,7 +186,7 @@ async def async_main():
                                     # Speak the response with the old personality
                                     if text_to_speak:
                                         logger.info(f"{personality.name} says: {text_to_speak}")
-                                        await speak_text(text_to_speak, personality_name=active_personality)
+                                        await add_to_speech_queue(text_to_speak, personality_name=active_personality)
 
                                     # Update the active personality
                                     if update_setting("active_personality", new_personality):
@@ -212,7 +220,7 @@ async def async_main():
                     # Speak the response with the active personality
                     if text_to_speak:
                         logger.info(f"{get_personality(active_personality).name} says: {text_to_speak}")
-                        await speak_text(text_to_speak, personality_name=active_personality)
+                        await add_to_speech_queue(text_to_speak, personality_name=active_personality)
                     
                     # Process all actions
                     result = await action_processor.process_actions(
@@ -225,17 +233,17 @@ async def async_main():
             except json.JSONDecodeError:
                 logger.error("Failed to parse response as JSON")
                 display.add_conversation("Error: Failed to parse response as JSON", speaker='assistant')
-                await speak_text("I encountered an error processing your request.", personality_name=active_personality)
+                await add_to_speech_queue("I encountered an error processing your request.", personality_name=active_personality)
             
             except Exception as e:
                 logger.error(f"Error processing response: {e}")
                 display.add_conversation(f"Error: {str(e)}", speaker='assistant')
-                await speak_text("I encountered an error processing your request.", personality_name=active_personality)
+                await add_to_speech_queue("I encountered an error processing your request.", personality_name=active_personality)
                 
     except Exception as e:
         logger.error(f"Error in async_main: {e}")
         active_personality = get_active_personality()
-        await speak_text("I encountered a critical error and need to shut down.", personality_name=active_personality)
+        await add_to_speech_queue("I encountered a critical error and need to shut down.", personality_name=active_personality)
         raise
 
 # Helper function to shut down Meross controller
