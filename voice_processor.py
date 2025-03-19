@@ -135,22 +135,25 @@ class VoiceProcessor:
             ai_response: The AI's response
         """
         try:
+                
             # Parse the JSON response
-            response_data = json.loads(ai_response)
+            if ai_response != "":
+                response_data = json.loads(ai_response)
             
-            # Extract the text response to speak
-            text_to_speak = response_data.get("response", "")
+                # Extract the text response to speak
+                text_to_speak = response_data.get("response", "")
             
-            # Update conversation history with the current turn
-            self.display.add_conversation(user_input, speaker='user')
-            self.display.add_conversation(text_to_speak, speaker='assistant')
-            
+                # Update conversation history with the current turn
+                self.display.add_conversation(text_to_speak, speaker='assistant')
+
+                # Filter out emojis for text-to-speech while preserving them in the display
+                filtered_text = filter_for_tts(text_to_speak)
+            else:
+                filtered_text = ""
+
             # Update the conversation history
             self.update_history(user_input, ai_response)
-            
-            # Filter out emojis for text-to-speech while preserving them in the display
-            filtered_text = filter_for_tts(text_to_speak)
-            
+          
             return filtered_text
             
         except json.JSONDecodeError:

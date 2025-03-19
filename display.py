@@ -39,6 +39,8 @@ class Display:
             active_personality = get_active_personality()
             personality = get_personality(active_personality)
             formatted_message = f"{personality.name}: {message}"
+        elif speaker == 'action':
+            formatted_message = f"Action: {message}"
         else:
             # For actions or system messages
             formatted_message = message

@@ -13,3 +13,24 @@ action_strings = [
     'list_climate_devices', 'get_smart_devices', 'get_weather', 'control_entity',
     'get_thermostat', 'set_thermostat'
 ]
+
+# List of actions that should be muted in the reply
+mute_reply_actions = [
+    "get_time",
+    "pause_timer",
+    "resume_timer",
+    "read_file",
+    "write_file",
+    "list_files",
+    "delete_file",
+    "edit_file",
+    "append_to_file",
+    "create_directory",
+    "move_file",
+    "copy_file",
+    "search_files",
+    "browse_internet",
+    "wake_word_off",
+    "wake_word_on",
+    "change_personality"
+]

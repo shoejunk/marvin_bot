@@ -29,6 +29,7 @@ from assistant_manager import AssistantManager
 from personalities import get_personality, list_personalities
 from waiting_sound import play_waiting_sound_once
 from context_store import update_home_assistant_devices, update_home_assistant_services, update_home_assistant_climate_devices
+from actions import mute_reply_actions
 
 # Load environment variables from .env file
 load_dotenv()
@@ -149,7 +150,9 @@ async def async_main():
 
             if not command:
                 continue
-                
+
+            display.add_conversation(command, speaker='user')
+
             # Get AI response using a thread since it may block
             logger.debug(f"Sending to LLM: '{command}'")
             active_personality = get_active_personality()  # Check for updates
@@ -169,7 +172,14 @@ async def async_main():
                 
                 # Check for personality change action first before processing other actions
                 personality_changed = False
-                
+
+                for i in range(len(actions)):
+                    action = actions[i]
+                    action_name = action.get("name")
+
+                    friendly_action_name = action_name.replace("_", " ")
+                    display.add_conversation(friendly_action_name, speaker='action')
+
                 # Process actions if any exist
                 if actions:
                     # First check for personality change
@@ -219,7 +229,9 @@ async def async_main():
                     for i in range(len(actions)):
                         action = actions[i]
                         action_name = action.get("name")
-                        
+
+                        friendly_action_name = action_name.replace("_", " ")
+
                         # Check if this is a Home Assistant action
                         if action_name in ['get_weather', 'get_thermostat', 'set_thermostat', 'control_entity', 
                                           'list_climate_devices', 'get_smart_devices']:
@@ -228,12 +240,11 @@ async def async_main():
 
                             # Let the user know they are looking it up
                             # Strip underscores from action name
-                            friendly_action_name = action_name.replace("_", " ")
                             await add_to_speech_queue(f"I'm doing a {friendly_action_name} query for you.", personality_name=active_personality)
                             await process_speech_queue()
                             
                             # Process the action
-                            result = await action_processor.process_actions([action])
+                            result = await action_processor.process_actions([action], update_setting)
                             if result:
                                 ha_action_results.append(result)
                     
@@ -282,13 +293,24 @@ async def async_main():
                             await add_to_speech_queue("I encountered an error processing the response.", personality_name=active_personality)
                     else:
                         # Process all actions normally
-                        await action_processor.process_actions(actions)
+                        await action_processor.process_actions(actions, update_setting)
+
+                        # Check if all actions are muted, in which case don't add the reply to the conversation
+                        all_actions_muted = True
+                        for action in actions:
+                            logger.info(f"Action: {action.get('name')}")
+                            if action.get("name") not in mute_reply_actions:
+                                logger.info(f"Action not in mute list: {action.get('name')}")
+                                all_actions_muted = False
+
+                        if all_actions_muted:
+                            reply = ""
                         
                         # Add conversation to display and history
                         text_to_speak = voice_processor.add_to_conversation(command, reply)
-                        
+
                         # Speak the response
-                        if text_to_speak:
+                        if text_to_speak and not all_actions_muted:
                             logger.info(f"{personality.name} says: {text_to_speak}")
                             await add_to_speech_queue(text_to_speak, personality_name=active_personality)
                 else:

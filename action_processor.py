@@ -255,6 +255,10 @@ class ActionProcessor:
                 elif action_name == 'browse_internet':
                     await self._handle_browse_internet(params)
                     
+                elif action_name == 'change_personality':
+                    # Already handled - do nothing
+                    pass
+
                 else:
                     logger.warning(f"Unknown action: {action_name}")
                     self.display.add_conversation(f"Unknown action: {action_name}")
@@ -277,14 +281,11 @@ class ActionProcessor:
         try:
             content = self.file_ops.read_file(filename)
             if content:
-                # Add to conversation display
-                self.display.add_conversation(f"Contents of {filename}:\n{content}", speaker='assistant')
-                
                 # Update history with full results
                 self.update_history(f"Contents of {filename}:\n{content}", "")
                 
                 # Speak a confirmation
-                await self.speak_text(f"Here's the content of {filename}", personality_name=active_personality)
+                await self.speak_text(f"OK, I've read {filename}", personality_name=active_personality)
             else:
                 error_message = f"File {filename} is empty or does not exist."
                 self.display.add_conversation(f"❌ {error_message}", speaker='assistant')
@@ -309,10 +310,6 @@ class ActionProcessor:
         
         try:
             self.file_ops.write_file(filename, content)
-            success_message = f"Successfully wrote to {filename}."
-            self.display.add_conversation(success_message, speaker='assistant')
-            self.update_history(success_message, "")
-            await self.speak_text(success_message, personality_name=active_personality)
         except Exception as e:
             error_message = f"Error writing to file {filename}: {e}"
             logger.error(error_message)
@@ -445,9 +442,7 @@ class ActionProcessor:
             filename = params[0]
             code_content = params[1]
             success = self.file_ops.write_file(filename, code_content, True)
-            if success:
-                await self.speak_text(f"Successfully wrote code to file {filename}", personality_name=active_personality)
-            else:
+            if not success:
                 await self.speak_text(f"Failed to write code to file {filename}", personality_name=active_personality)
         else:
             await self.speak_text("Insufficient parameters for writing code", personality_name=active_personality)
