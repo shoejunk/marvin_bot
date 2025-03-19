@@ -143,10 +143,10 @@ async def async_main():
             await process_speech_queue()
 
             # Process voice input
-            logger.info(f"Processing voice input")
             command, wake_word_detected = await voice_processor.process_voice_input()
-            logger.info(f"Done processing voice input")
-            
+
+            await process_speech_queue()
+
             if not command:
                 continue
                 
@@ -196,47 +196,109 @@ async def async_main():
                                     if text_to_speak:
                                         logger.info(f"{personality.name} says: {text_to_speak}")
                                         await add_to_speech_queue(text_to_speak, personality_name=active_personality)
+                                    
+                                    # Change the personality
+                                    update_setting("active_personality", new_personality)
+                                    
+                                    # Get the new personality
+                                    active_personality = get_active_personality()
+                                    personality = get_personality(active_personality)
+                                    
+                                    # Announce the change
+                                    change_message = f"I'm now {personality.name}."
+                                    logger.info(change_message)
+                                    await add_to_speech_queue(change_message, personality_name=active_personality)
+                                    
+                                    # Skip processing other actions
+                                    break
+                    
+                    # Process other actions
+                    ha_action_detected = False
+                    ha_action_results = []
+                    
+                    for i in range(len(actions)):
+                        action = actions[i]
+                        action_name = action.get("name")
+                        
+                        # Check if this is a Home Assistant action
+                        if action_name in ['get_weather', 'get_thermostat', 'set_thermostat', 'control_entity', 
+                                          'list_climate_devices', 'get_smart_devices']:
+                            ha_action_detected = True
+                            parameters = action.get("parameters", [])
 
-                                    # Update the active personality
-                                    if update_setting("active_personality", new_personality):
+                            # Let the user know they are looking it up
+                            # Strip underscores from action name
+                            friendly_action_name = action_name.replace("_", " ")
+                            await add_to_speech_queue(f"I'm doing a {friendly_action_name} query for you.", personality_name=active_personality)
+                            await process_speech_queue()
+                            
+                            # Process the action
+                            result = await action_processor.process_actions([action])
+                            if result:
+                                ha_action_results.append(result)
+                    
+                    # If Home Assistant actions were detected, get a follow-up response from the LLM
+                    if ha_action_detected and ha_action_results:
+                        logger.info("Home Assistant action detected, getting follow-up response from LLM")
+                        
+                        # Get context for LLM including Home Assistant query results
+                        from context_store import get_context_for_llm
+                        ha_context = get_context_for_llm()
+                        
+                        # Get a follow-up response from the LLM
+                        follow_up_reply = await asyncio.to_thread(
+                            get_ai_response, 
+                            f"Please provide a natural language response to the user's query: '{command}' " +
+                            "based on the Home Assistant query results. Do not include any actions in your response.",
+                            active_personality,
+                            additional_context=ha_context
+                        )
+                        
+                        try:
+                            # Parse the JSON response
+                            follow_up_data = json.loads(follow_up_reply)
 
-                                        # Get the new personality
-                                        active_personality = new_personality
-                                        personality = get_personality(active_personality)
-                                        logger.info(f"Changed personality to {personality.name}")
-                                        
-                                        # Remove this action so it's not processed again
-                                        actions.pop(i)
-                                        
-                                        # Flag that we've changed personality
-                                        personality_changed = True
-                                        
-                                        # Process remaining actions
-                                        if actions:
-                                            await action_processor.process_actions(
-                                                actions, 
-                                                update_setting_function=update_setting
-                                            )
-                                        
-                                        # Break out of the loop to avoid processing the same command twice
-                                        break
-                
-                # Only process if we haven't changed personality
-                if not personality_changed:
-                    # Add conversation to display and history
+                            logger.info(f"Follow-up response from LLM: {follow_up_data}")
+
+                            # Extract the text response
+                            text_to_speak = follow_up_data.get("response", "")
+                            
+                            # Add conversation to display and history
+                            voice_processor.add_to_conversation(command, follow_up_reply)
+                            
+                            # Speak the response
+                            if text_to_speak:
+                                logger.info(f"{personality.name} says: {text_to_speak}")
+                                await add_to_speech_queue(text_to_speak, personality_name=active_personality)
+                            else:
+                                logger.warning("No text to speak found in follow-up response")
+                        except json.JSONDecodeError:
+                            logger.error(f"Failed to parse follow-up response as JSON: {follow_up_reply}")
+                            # Use the follow-up reply directly if it's not valid JSON
+                            voice_processor.add_to_conversation(command, follow_up_reply)
+                            await add_to_speech_queue(follow_up_reply, personality_name=active_personality)
+                        except Exception as e:
+                            logger.error(f"Error processing follow-up response: {e}")
+                            await add_to_speech_queue("I encountered an error processing the response.", personality_name=active_personality)
+                    else:
+                        # Process all actions normally
+                        await action_processor.process_actions(actions)
+                        
+                        # Add conversation to display and history
+                        text_to_speak = voice_processor.add_to_conversation(command, reply)
+                        
+                        # Speak the response
+                        if text_to_speak:
+                            logger.info(f"{personality.name} says: {text_to_speak}")
+                            await add_to_speech_queue(text_to_speak, personality_name=active_personality)
+                else:
+                    # No actions, just speak the response
                     text_to_speak = voice_processor.add_to_conversation(command, reply)
                     
-                    # Speak the response with the active personality
                     if text_to_speak:
-                        logger.info(f"{get_personality(active_personality).name} says: {text_to_speak}")
+                        logger.info(f"{personality.name} says: {text_to_speak}")
                         await add_to_speech_queue(text_to_speak, personality_name=active_personality)
-                    
-                    # Process all actions
-                    result = await action_processor.process_actions(
-                        actions, 
-                        update_setting_function=update_setting
-                    )
-                    
+                
                 play_waiting_sound_once()
 
             except json.JSONDecodeError:
@@ -255,29 +317,12 @@ async def async_main():
         await add_to_speech_queue("I encountered a critical error and need to shut down.", personality_name=active_personality)
         raise
 
-# Helper function to shut down Meross controller
-async def shutdown_meross():
-    """Safely shut down the Meross controller."""
-    try:
-        # Import here to avoid circular imports
-        from meross_control import MerossController
-        
-        # Get the singleton instance and close it
-        controller = MerossController.get_instance()
-        if controller:
-            logger.debug("Shutting down Meross controller...")
-            await controller.close()
-            logger.debug("Meross controller shut down successfully")
-    except Exception as e:
-        logger.error(f"Error shutting down Meross controller: {e}")
-
 def main():
     """Main entry point for the application."""
     # Initialize the assistant manager
     assistant_manager = AssistantManager(
         async_main_function=async_main,
         display=display,
-        shutdown_meross_function=shutdown_meross,
         shutdown_logging_function=shutdown_logging
     )
     

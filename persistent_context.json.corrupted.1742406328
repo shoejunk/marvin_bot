@@ -1,0 +1,51 @@
+{
+  "home_assistant": {
+    "devices": {},
+    "services": {},
+    "climate_devices": [],
+    "query_results": {
+      "get_thermostat": {
+        "timestamp": 1742406307.3522422,
+        "result": {
+          "success": true,
+          "entity_id": "climate.upper_thermostat_thermostat",
+          "current_temperature": 71,
+          "target_temperature": 71,
+          "hvac_mode": null,
+          "hvac_action": "idle",
+          "state": "cool",
+          "message": "Upper Thermostat Thermostat is currently 71\u00b0F, set to 71\u00b0F (idle)",
+          "full_state": {
+            "entity_id": "climate.upper_thermostat_thermostat",
+            "state": "cool",
+            "attributes": {
+              "hvac_modes": [
+                "off",
+                "heat",
+                "cool"
+              ],
+              "min_temp": 50,
+              "max_temp": 90,
+              "fan_modes": [
+                "on",
+                "auto",
+                "diffuse"
+              ],
+              "preset_modes": [
+                "NoHold",
+                "HoldUntil",
+                "PermanentHold",
+                "TemporaryHold",
+                "VacationHold"
+              ],
+              "current_temperature": 71,
+              "temperature": 71,
+              "target_temp_high": null,
+              "target_temp_low": null,
+              "fan_mode": "auto",
+              "hvac_action": "idle",
+              "preset_mode": "TemporaryHold",
+              "friendly_name": "Upper Thermostat Thermostat",
+              "supported_features": 411
+            },
+            "last_changed": 

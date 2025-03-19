@@ -51,7 +51,22 @@ class HomeAssistantHandler:
         self.speak_function = speak_function
         self.display = display
         self.update_history = update_history
-    
+        
+    def _store_result_in_context(self, action_name, result):
+        """
+        Store the result of an action in the persistent context.
+        
+        Args:
+            action_name: Name of the action
+            result: Result data to store
+        """
+        try:
+            # Import here to avoid circular imports
+            from context_store import update_home_assistant_query_result
+            update_home_assistant_query_result(action_name, result)
+        except Exception as e:
+            logger.error(f"Error storing result in context: {e}")
+            
     def connect(self) -> bool:
         """
         Connect to Home Assistant.
@@ -150,14 +165,14 @@ class HomeAssistantHandler:
         temperature = parameters.get('temperature')
         mode = parameters.get('mode', 'heat')
         
-        if not entity_id or temperature is None:
+        if not entity_id or not temperature:
             message = "Missing required parameters: entity_id or temperature"
             if self.speak_function:
                 active_personality = get_active_personality()
                 await self.speak_function(message, personality_name=active_personality)
             return {"success": False, "message": message}
         
-        # Convert temperature to float if it's a string
+        # Try to convert temperature to float if it's a string
         if isinstance(temperature, str):
             try:
                 temperature = float(temperature)
@@ -168,23 +183,25 @@ class HomeAssistantHandler:
                     await self.speak_function(message, personality_name=active_personality)
                 return {"success": False, "message": message}
         
-        success = self.controller.set_thermostat_temperature(entity_id, temperature, mode)
+        # Set the thermostat
+        success = self.controller.set_temperature(entity_id, temperature, mode)
         
         if success:
-            message = f"Set {entity_id} to {temperature} degrees in {mode} mode"
-            if self.speak_function:
-                active_personality = get_active_personality()
-                await self.speak_function(message, personality_name=active_personality)
-            if self.display:
-                self.display.add_conversation(message, speaker='assistant')
-            if self.update_history:
-                self.update_history(message, "")
-            return {
+            message = f"Set {entity_id} to {temperature}°F in {mode} mode"
+            
+            # Store the result in context instead of speaking it
+            result = {
                 "success": True, 
-                "message": message
+                "message": message,
+                "entity_id": entity_id,
+                "temperature": temperature,
+                "mode": mode
             }
+            self._store_result_in_context("set_thermostat", result)
+            
+            return result
         else:
-            message = "Failed to set thermostat temperature"
+            message = f"Failed to set {entity_id} to {temperature}°F"
             if self.speak_function:
                 active_personality = get_active_personality()
                 await self.speak_function(message, personality_name=active_personality)
@@ -192,13 +209,13 @@ class HomeAssistantHandler:
     
     async def get_thermostat(self, parameters: Dict[str, Any]) -> Dict[str, Any]:
         """
-        Handle getting thermostat state.
+        Handle getting thermostat information.
         
         Args:
             parameters: Must contain 'entity_id'
             
         Returns:
-            Dict[str, Any]: Result of the action with thermostat state
+            Dict[str, Any]: Result of the action
         """
         entity_id = parameters.get('entity_id')
         
@@ -209,28 +226,29 @@ class HomeAssistantHandler:
                 await self.speak_function(message, personality_name=active_personality)
             return {"success": False, "message": message}
         
+        # Get the thermostat state
         state = self.controller.get_thermostat_state(entity_id)
         
         if state:
-            # Extract relevant information for a more readable response
+            # Extract relevant information
             attributes = state.get('attributes', {})
             current_temp = attributes.get('current_temperature')
             target_temp = attributes.get('temperature')
             hvac_mode = attributes.get('hvac_mode')
             hvac_action = attributes.get('hvac_action')
+            friendly_name = attributes.get('friendly_name', entity_id)
             
-            message = f"The {entity_id} is currently {hvac_action or 'idle'} in {hvac_mode} mode. " \
-                     f"Current temperature is {current_temp}°F with target of {target_temp}°F."
+            # Create a readable message
+            message = f"{friendly_name} is currently {current_temp}°F"
+            if target_temp:
+                message += f", set to {target_temp}°F"
+            if hvac_mode:
+                message += f" in {hvac_mode} mode"
+            if hvac_action:
+                message += f" ({hvac_action})"
             
-            if self.speak_function:
-                active_personality = get_active_personality()
-                await self.speak_function(message, personality_name=active_personality)
-            if self.display:
-                self.display.add_conversation(message, speaker='assistant')
-            if self.update_history:
-                self.update_history(message, "")
-                
-            return {
+            # Store the result in context instead of speaking it
+            result = {
                 "success": True,
                 "entity_id": entity_id,
                 "current_temperature": current_temp,
@@ -241,6 +259,9 @@ class HomeAssistantHandler:
                 "message": message,
                 "full_state": state
             }
+            self._store_result_in_context("get_thermostat", result)
+            
+            return result
         else:
             message = f"Failed to get state for {entity_id}"
             if self.speak_function:
@@ -356,26 +377,19 @@ class HomeAssistantHandler:
                           f"Currently {device['current_temperature']}°F, " \
                           f"set to {device['target_temperature']}°F in {device['hvac_mode']} mode\n"
             
-            if self.speak_function:
-                active_personality = get_active_personality()
-                await self.speak_function(message, personality_name=active_personality)
-            if self.display:
-                self.display.add_conversation(message, speaker='assistant')
-            if self.update_history:
-                self.update_history(message, "")
-                
-            return {
+            # Store the result in context instead of speaking it
+            result = {
                 "success": True,
                 "count": len(devices),
                 "devices": simplified_devices,
                 "message": message,
                 "full_devices": devices
             }
+            self._store_result_in_context("list_climate_devices", result)
+            
+            return result
         else:
             message = "No climate devices found or failed to get devices"
-            if self.speak_function:
-                active_personality = get_active_personality()
-                await self.speak_function(message, personality_name=active_personality)
             return {"success": False, "message": message}
     
     async def get_smart_devices(self) -> Dict[str, Any]:
@@ -412,26 +426,19 @@ class HomeAssistantHandler:
                 if len(domain_devices) > 5:
                     message += f"  ... and {len(domain_devices) - 5} more {domain} devices\n"
             
-            if self.speak_function:
-                active_personality = get_active_personality()
-                await self.speak_function(message, personality_name=active_personality)
-            if self.display:
-                self.display.add_conversation(message, speaker='assistant')
-            if self.update_history:
-                self.update_history(message, "")
-                
-            return {
+            # Store the result in context instead of speaking it
+            result = {
                 "success": True,
                 "count": len(devices),
                 "domains": domains,
                 "message": message,
                 "full_devices": devices
             }
+            self._store_result_in_context("get_smart_devices", result)
+            
+            return result
         else:
             message = "No devices found or failed to get devices"
-            if self.speak_function:
-                active_personality = get_active_personality()
-                await self.speak_function(message, personality_name=active_personality)
             return {"success": False, "message": message}
             
     async def get_weather(self, parameters: Dict[str, Any]) -> Dict[str, Any]:
@@ -442,50 +449,44 @@ class HomeAssistantHandler:
             parameters: May contain 'entity_id' for a specific weather entity
             
         Returns:
-            Dict[str, Any]: Result of the action with weather information
+            Dict[str, Any]: Result of the action
         """
-        entity_id = parameters.get('entity_id')
+        entity_id = parameters.get('entity_id', None)
         
         # Get weather information
         weather_info = self.controller.get_weather(entity_id)
         
         if weather_info:
-            # Extract relevant information for a more readable response
+            # Extract relevant information
+            state = weather_info.get('state', 'unknown')
             attributes = weather_info.get('attributes', {})
-            state = weather_info.get('state')  # Current condition (clear, cloudy, etc.)
             temperature = attributes.get('temperature')
             humidity = attributes.get('humidity')
             pressure = attributes.get('pressure')
             wind_speed = attributes.get('wind_speed')
             wind_bearing = attributes.get('wind_bearing')
             forecast = attributes.get('forecast', [])
-            friendly_name = attributes.get('friendly_name', weather_info.get('entity_id'))
             
-            # Create a readable message
-            message = f"Current weather at {friendly_name}: {state}, {temperature}°F\n"
-            message += f"Humidity: {humidity}%, Pressure: {pressure} hPa\n"
-            message += f"Wind: {wind_speed} mph"
-            if wind_bearing is not None:
-                # Convert wind bearing to cardinal direction
-                directions = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"]
-                index = round(wind_bearing / 45) % 8
-                message += f" from the {directions[index]}"
-            
-            # Add forecast if available (just next day)
-            if forecast and len(forecast) > 0:
-                next_day = forecast[0]
-                message += f"\n\nForecast for tomorrow: {next_day.get('condition')}, "
-                message += f"High: {next_day.get('temperature')}°F, Low: {next_day.get('templow')}°F"
-            
-            if self.speak_function:
-                active_personality = get_active_personality()
-                await self.speak_function(message, personality_name=active_personality)
-            if self.display:
-                self.display.add_conversation(message, speaker='assistant')
-            if self.update_history:
-                self.update_history(message, "")
+            # Create a more detailed readable message
+            message = f"Current weather is {state}"
+            if temperature is not None:
+                message += f", {temperature}°F"
+            if humidity is not None:
+                message += f", {humidity}% humidity"
+            if pressure is not None:
+                message += f", pressure {pressure} hPa"
+            if wind_speed is not None:
+                message += f", wind speed {wind_speed} mph"
                 
-            return {
+            # Add forecast if available
+            if forecast and len(forecast) > 0:
+                tomorrow = forecast[0]
+                message += f". Tomorrow: {tomorrow.get('condition', 'unknown')}, "
+                message += f"high of {tomorrow.get('temperature', 'unknown')}°F, "
+                message += f"low of {tomorrow.get('templow', 'unknown')}°F"
+            
+            # Store the result in context instead of speaking it
+            result = {
                 "success": True,
                 "entity_id": weather_info.get('entity_id'),
                 "state": state,
@@ -498,18 +499,16 @@ class HomeAssistantHandler:
                 "message": message,
                 "full_weather": weather_info
             }
+            
+            # Log the result for debugging
+            logger.info(f"Weather result: {result}")
+            
+            # Store in context
+            self._store_result_in_context("get_weather", result)
+            
+            return result
         else:
-            # If no specific entity was requested, try to list available weather entities
-            if not entity_id:
-                weather_entities = self.controller.get_weather_entities()
-                if weather_entities:
-                    entity_names = [entity.get('entity_id') for entity in weather_entities]
-                    message = f"No default weather entity found. Available weather entities: {', '.join(entity_names)}"
-                else:
-                    message = "No weather entities found in Home Assistant"
-            else:
-                message = f"Failed to get weather information for {entity_id}"
-                
+            message = "Failed to get weather information"
             if self.speak_function:
                 active_personality = get_active_personality()
                 await self.speak_function(message, personality_name=active_personality)
@@ -517,16 +516,17 @@ class HomeAssistantHandler:
     
     async def control_entity(self, parameters: Dict[str, Any]) -> Dict[str, Any]:
         """
-        Handle controlling any entity in Home Assistant.
+        Handle controlling a Home Assistant entity with a service.
         
         Args:
-            parameters: Must contain 'entity_id' and 'service', may contain additional service data
+            parameters: Must contain 'entity_id' and 'service', may contain 'service_data'
             
         Returns:
             Dict[str, Any]: Result of the action
         """
         entity_id = parameters.get('entity_id')
         service = parameters.get('service')
+        service_data = parameters.get('service_data', {})
         
         if not entity_id or not service:
             message = "Missing required parameters: entity_id or service"
@@ -535,62 +535,60 @@ class HomeAssistantHandler:
                 await self.speak_function(message, personality_name=active_personality)
             return {"success": False, "message": message}
         
-        # Extract any additional service data
-        service_data = {k: v for k, v in parameters.items() if k not in ['entity_id', 'service']}
-        
-        # Get current state before the action
-        current_state = self.controller.get_entity_state(entity_id)
+        # Add entity_id to service_data if not already present
+        if 'entity_id' not in service_data:
+            service_data['entity_id'] = entity_id
+            
+        # Split service into domain.service_name if it contains a dot
+        if '.' in service:
+            domain, service_name = service.split('.', 1)
+        else:
+            # Try to determine domain from entity_id
+            if '.' in entity_id:
+                domain = entity_id.split('.', 1)[0]
+                service_name = service
+            else:
+                message = f"Invalid service format: {service}. Must be in format domain.service_name"
+                if self.speak_function:
+                    active_personality = get_active_personality()
+                    await self.speak_function(message, personality_name=active_personality)
+                return {"success": False, "message": message}
         
         # Call the service
-        success = self.controller.control_entity(entity_id, service, **service_data)
+        success = self.controller.call_service(domain, service_name, service_data)
         
         if success:
-            # Get the entity type from the entity_id
-            entity_type = entity_id.split('.')[0] if '.' in entity_id else 'entity'
+            # Create a readable message
+            friendly_name = self.controller.get_friendly_name(entity_id) or entity_id
             
-            # Get friendly name if available
-            friendly_name = None
-            if current_state and 'attributes' in current_state:
-                friendly_name = current_state['attributes'].get('friendly_name')
-            
-            display_name = friendly_name or entity_id
-            
-            # Create a message based on the service
-            if service == 'turn_on':
-                message = f"Turned on {display_name}"
-            elif service == 'turn_off':
-                message = f"Turned off {display_name}"
-            elif service == 'toggle':
-                message = f"Toggled {display_name}"
+            # Try to make a human-readable message based on the service
+            if service_name == 'turn_on':
+                message = f"Turned on {friendly_name}"
+            elif service_name == 'turn_off':
+                message = f"Turned off {friendly_name}"
+            elif service_name == 'toggle':
+                message = f"Toggled {friendly_name}"
             else:
-                # For other services, include the service name and any parameters
-                message = f"Called service '{service}' on {display_name}"
-                if service_data:
-                    param_str = ", ".join(f"{k}={v}" for k, v in service_data.items())
-                    message += f" with parameters: {param_str}"
-            
-            if self.speak_function:
-                active_personality = get_active_personality()
-                await self.speak_function(message, personality_name=active_personality)
-            if self.display:
-                self.display.add_conversation(message, speaker='assistant')
-            if self.update_history:
-                self.update_history(message, "")
+                message = f"Called service {service} on {friendly_name}"
                 
-            # Get updated state after the action
-            updated_state = self.controller.get_entity_state(entity_id)
+                # Add service data to message if present
+                if service_data and len(service_data) > 1:  # More than just entity_id
+                    data_str = ", ".join([f"{k}={v}" for k, v in service_data.items() if k != 'entity_id'])
+                    message += f" with {data_str}"
             
-            return {
+            # Store the result in context instead of speaking it
+            result = {
                 "success": True,
+                "message": message,
                 "entity_id": entity_id,
                 "service": service,
-                "service_data": service_data,
-                "message": message,
-                "previous_state": current_state,
-                "current_state": updated_state
+                "service_data": service_data
             }
+            self._store_result_in_context("control_entity", result)
+            
+            return result
         else:
-            message = f"Failed to control {entity_id} with service {service}"
+            message = f"Failed to call service {service} on {entity_id}"
             if self.speak_function:
                 active_personality = get_active_personality()
                 await self.speak_function(message, personality_name=active_personality)

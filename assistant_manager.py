@@ -19,19 +19,17 @@ from logger_config import get_logger
 logger = get_logger(__name__)
 
 class AssistantManager:
-    def __init__(self, async_main_function, display, shutdown_meross_function, shutdown_logging_function):
+    def __init__(self, async_main_function, display, shutdown_logging_function):
         """
         Initialize the AssistantManager.
         
         Args:
             async_main_function: The main async function that runs the assistant
             display: Display interface for UI updates
-            shutdown_meross_function: Function to shut down Meross controller
             shutdown_logging_function: Function to shut down logging
         """
         self.async_main = async_main_function
         self.display = display
-        self.shutdown_meross = shutdown_meross_function
         self.shutdown_logging = shutdown_logging_function
         
         # Global variables to track the running event loop and task
@@ -85,9 +83,6 @@ class AssistantManager:
                     
                 if self.assistant_loop.is_running():
                     logger.warning("Event loop is still running after timeout")
-            
-            # Shutdown the Meross controller
-            await self.shutdown_meross()
             
             # Properly shut down all loggers
             self.shutdown_logging()

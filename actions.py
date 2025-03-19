@@ -10,5 +10,6 @@ action_strings = [
     'move_file', 'copy_file', 'search_files', 'get_time',
     'dictate', 'write_code', 'browse_internet', 'wake_word_off', 'wake_word_on',
     'play_music', 'next_track', 'previous_track', 'adjust_volume', 'change_personality',
-    'list_climate_devices', 'get_smart_devices', 'get_weather', 'control_entity'
+    'list_climate_devices', 'get_smart_devices', 'get_weather', 'control_entity',
+    'get_thermostat', 'set_thermostat'
 ]

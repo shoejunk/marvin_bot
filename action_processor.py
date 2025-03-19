@@ -81,13 +81,18 @@ class ActionProcessor:
         Args:
             actions: List of action dictionaries with name and parameters
             update_setting_function: Function to update persistent settings (optional)
+            
+        Returns:
+            Dict or None: Result of the action if it's a Home Assistant action, None otherwise
         """
         active_personality = get_active_personality()
         
         if not actions:
             logger.debug("No actions to process")
-            return
+            return None
             
+        result = None
+        
         for action in actions:
             action_name = action.get('name', '')
             params = action.get('parameters', [])
@@ -188,18 +193,24 @@ class ActionProcessor:
                 elif action_name == 'get_time':
                     await self._handle_get_time()
                     
-                # Handle Home Assistant actions
+                # Home Assistant actions
                 elif action_name == 'list_climate_devices':
-                    await self._handle_list_climate_devices()
+                    result = await self._handle_list_climate_devices()
                     
                 elif action_name == 'get_smart_devices':
-                    await self._handle_get_smart_devices()
+                    result = await self._handle_get_smart_devices()
                     
                 elif action_name == 'get_weather':
-                    await self._handle_get_weather(params)
+                    result = await self._handle_get_weather(params)
                     
                 elif action_name == 'control_entity':
-                    await self._handle_control_entity(params)
+                    result = await self._handle_control_entity(params)
+                    
+                elif action_name == 'get_thermostat':
+                    result = await self._handle_get_thermostat(params)
+                    
+                elif action_name == 'set_thermostat':
+                    result = await self._handle_set_thermostat(params)
                     
                 # File operation actions
                 elif action_name == 'read_file':
@@ -252,7 +263,7 @@ class ActionProcessor:
                 logger.error(f"Error processing action: {e}")
                 self.display.add_conversation(f"Error processing action: {e}")
         
-        return None  # No special signal
+        return result  # Return the result of Home Assistant actions
 
     # File operation handlers
     async def _handle_read_file(self, params):
@@ -534,108 +545,204 @@ class ActionProcessor:
 
     # Home Assistant handlers
     async def _handle_list_climate_devices(self):
-        active_personality = get_active_personality()
-        if self.home_assistant:
-            await self.home_assistant.handle_action('list_climate_devices', {})
-        else:
-            await self.speak_text("Home Assistant is not configured.", personality_name=active_personality)
+        """
+        Handle the list_climate_devices action.
+        
+        Returns:
+            Dict: Result of the action
+        """
+        if not self.home_assistant:
+            await self.speak_text("Home Assistant is not configured.")
+            return {"success": False, "message": "Home Assistant is not configured."}
+        
+        try:
+            # Call the Home Assistant handler and return the result
+            result = await self.home_assistant.handle_action('list_climate_devices', {})
+            return result
+        except Exception as e:
+            error_message = f"Error listing climate devices: {str(e)}"
+            logger.error(error_message)
+            await self.speak_text(error_message)
+            return {"success": False, "message": error_message}
             
     async def _handle_get_smart_devices(self):
-        active_personality = get_active_personality()
-        if self.home_assistant:
-            await self.home_assistant.handle_action('get_smart_devices', {})
-        else:
-            await self.speak_text("Home Assistant is not configured.", personality_name=active_personality)
-            
-    async def _handle_get_weather(self, params):
-        """Handle getting weather information from Home Assistant.
-        
-        Args:
-            params: List of parameters [entity_id (optional)]
         """
-        active_personality = get_active_personality()
-        if self.home_assistant:
-            # Extract entity_id if provided
-            entity_id = params[0] if params and params[0] else None
-            
-            # Create parameters dictionary
-            params_dict = {}
-            if entity_id:
-                params_dict['entity_id'] = entity_id
-                
-            # Call Home Assistant handler
-            await self.home_assistant.handle_action('get_weather', params_dict)
-        else:
-            await self.speak_text("Home Assistant is not configured.", personality_name=active_personality)
-            
-    async def _handle_control_entity(self, params):
-        """Handle controlling any entity in Home Assistant.
+        Handle the get_smart_devices action.
         
-        Args:
-            params: List of parameters [entity_id, service, param1_name, param1_value, ...]
+        Returns:
+            Dict: Result of the action
         """
-        active_personality = get_active_personality()
         if not self.home_assistant:
-            await self.speak_text("Home Assistant is not configured.", personality_name=active_personality)
-            return
-            
-        if len(params) < 2:
-            await self.speak_text("Not enough parameters for control_entity action. Need at least entity_id and service.", 
-                            personality_name=active_personality)
-            return
-            
-        # Extract entity_id and service
+            await self.speak_text("Home Assistant is not configured.")
+            return {"success": False, "message": "Home Assistant is not configured."}
+        
+        try:
+            # Call the Home Assistant handler and return the result
+            result = await self.home_assistant.handle_action('get_smart_devices', {})
+            return result
+        except Exception as e:
+            error_message = f"Error getting smart devices: {str(e)}"
+            logger.error(error_message)
+            await self.speak_text(error_message)
+            return {"success": False, "message": error_message}
+    
+    async def _handle_get_weather(self, params):
+        """
+        Handle the get_weather action.
+        
+        Args:
+            params: List of parameters for the action
+        
+        Returns:
+            Dict: Result of the action
+        """
+        if not self.home_assistant:
+            await self.speak_text("Home Assistant is not configured.")
+            return {"success": False, "message": "Home Assistant is not configured."}
+        
+        # Create parameters dictionary
+        params_dict = {}
+        if params and len(params) > 0:
+            entity_id = params[0]
+            params_dict['entity_id'] = entity_id
+        
+        try:
+            # Call the Home Assistant handler and return the result
+            result = await self.home_assistant.handle_action('get_weather', params_dict)
+            return result
+        except Exception as e:
+            error_message = f"Error getting weather: {str(e)}"
+            logger.error(error_message)
+            await self.speak_text(error_message)
+            return {"success": False, "message": error_message}
+    
+    async def _handle_control_entity(self, params):
+        """
+        Handle the control_entity action.
+        
+        Args:
+            params: List of parameters for the action
+                [0] - entity_id
+                [1] - service
+                [2+] - optional service data as key=value pairs
+        
+        Returns:
+            Dict: Result of the action
+        """
+        if not self.home_assistant:
+            await self.speak_text("Home Assistant is not configured.")
+            return {"success": False, "message": "Home Assistant is not configured."}
+        
+        # Need at least entity_id and service
+        if not params or len(params) < 2:
+            error_message = "Not enough parameters for control_entity action. Need at least entity_id and service."
+            await self.speak_text(error_message)
+            return {"success": False, "message": error_message}
+        
         entity_id = params[0]
         service = params[1]
+        
+        # Parse any additional parameters as service data
+        service_data = {'entity_id': entity_id}
+        for i in range(2, len(params)):
+            param = params[i]
+            if '=' in param:
+                key, value = param.split('=', 1)
+                service_data[key.strip()] = value.strip()
         
         # Create parameters dictionary
         params_dict = {
             'entity_id': entity_id,
-            'service': service
+            'service': service,
+            'service_data': service_data
         }
         
-        # Add any additional parameters (name-value pairs)
-        if len(params) > 2:
-            # Parameters should be in pairs (name, value)
-            for i in range(2, len(params), 2):
-                if i + 1 < len(params):  # Make sure we have a value for this parameter
-                    param_name = params[i]
-                    param_value = params[i + 1]
-                    
-                    # Try to convert numeric values
-                    try:
-                        if isinstance(param_value, str) and param_value.replace('.', '', 1).isdigit():
-                            if '.' in param_value:
-                                param_value = float(param_value)
-                            else:
-                                param_value = int(param_value)
-                    except (ValueError, TypeError):
-                        pass  # Keep as string if conversion fails
-                        
-                    params_dict[param_name] = param_value
-        
-        # Call Home Assistant handler with timeout protection
         try:
-            import asyncio
-            # Create a task for the action and wait for it with a timeout
-            action_task = asyncio.create_task(self.home_assistant.handle_action('control_entity', params_dict))
-            # Wait for 20 seconds max (longer than the handler's internal timeout)
-            result = await asyncio.wait_for(action_task, timeout=20)
-            
-            # Check if the action was successful
-            if not result.get('success', False):
-                error_message = result.get('message', 'Unknown error')
-                logger.error(f"Home Assistant control_entity action failed: {error_message}")
-                await self.speak_text(f"I had trouble controlling {entity_id}. {error_message}", 
-                                personality_name=active_personality)
-        except asyncio.TimeoutError:
-            logger.error(f"Timeout while executing Home Assistant control_entity action for {entity_id}")
-            await self.speak_text(f"I'm sorry, the request to control {entity_id} timed out. Please try again later.", 
-                            personality_name=active_personality)
+            # Call the Home Assistant handler and return the result
+            result = await self.home_assistant.handle_action('control_entity', params_dict)
+            return result
         except Exception as e:
+            error_message = f"Error controlling entity {entity_id}: {str(e)}"
             logger.error(f"Error executing Home Assistant control_entity action: {str(e)}")
-            await self.speak_text(f"I encountered an error while trying to control {entity_id}: {str(e)}", 
-                            personality_name=active_personality)
+            await self.speak_text(error_message)
+            return {"success": False, "message": error_message}
+    
+    async def _handle_get_thermostat(self, params):
+        """
+        Handle the get_thermostat action.
+        
+        Args:
+            params: List of parameters for the action
+                [0] - entity_id (optional)
+        
+        Returns:
+            Dict: Result of the action
+        """
+        if not self.home_assistant:
+            await self.speak_text("Home Assistant is not configured.")
+            return {"success": False, "message": "Home Assistant is not configured."}
+        
+        # Create parameters dictionary
+        params_dict = {}
+        if params and len(params) > 0:
+            entity_id = params[0]
+            params_dict['entity_id'] = entity_id
+        
+        try:
+            # Call the Home Assistant handler and return the result
+            result = await self.home_assistant.handle_action('get_thermostat', params_dict)
+            return result
+        except Exception as e:
+            error_message = f"Error getting thermostat information: {str(e)}"
+            logger.error(error_message)
+            await self.speak_text(error_message)
+            return {"success": False, "message": error_message}
+    
+    async def _handle_set_thermostat(self, params):
+        """
+        Handle the set_thermostat action.
+        
+        Args:
+            params: List of parameters for the action
+                [0] - entity_id
+                [1] - temperature
+                [2] - mode (optional)
+        
+        Returns:
+            Dict: Result of the action
+        """
+        if not self.home_assistant:
+            await self.speak_text("Home Assistant is not configured.")
+            return {"success": False, "message": "Home Assistant is not configured."}
+        
+        # Need at least entity_id and temperature
+        if not params or len(params) < 2:
+            error_message = "Not enough parameters for set_thermostat action. Need at least entity_id and temperature."
+            await self.speak_text(error_message)
+            return {"success": False, "message": error_message}
+        
+        entity_id = params[0]
+        temperature = params[1]
+        
+        # Create parameters dictionary
+        params_dict = {
+            'entity_id': entity_id,
+            'temperature': temperature
+        }
+        
+        # Add mode if provided
+        if len(params) > 2:
+            params_dict['mode'] = params[2]
+        
+        try:
+            # Call the Home Assistant handler and return the result
+            result = await self.home_assistant.handle_action('set_thermostat', params_dict)
+            return result
+        except Exception as e:
+            error_message = f"Error setting thermostat {entity_id}: {str(e)}"
+            logger.error(error_message)
+            await self.speak_text(error_message)
+            return {"success": False, "message": error_message}
         
     # Timer functions
     async def set_timer(self, duration: str):

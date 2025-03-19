@@ -89,7 +89,6 @@ class DisplayGUI:
     def update_display(self):
         # Schedule next update
         self.root.after(self.update_interval, self.update_display)
-        logger.debug("DisplayGUI.update_display called, updating timers")
         self.update_timers()
 
     def update_timers(self):
@@ -101,10 +100,6 @@ class DisplayGUI:
             # Clear existing paused timer entries
             for item in self.paused_timers_tree.get_children():
                 self.paused_timers_tree.delete(item)
-            
-            # Log timer information for debugging
-            logger.debug(f"DisplayGUI updating timers - Active timers: {self.timers}")
-            logger.debug(f"DisplayGUI updating timers - Paused timers: {self.paused_timers}")
             
             # Update the display with current active timers
             for name, end_time in self.timers.items():

@@ -132,13 +132,14 @@ def clean_generated_text(original_text: str) -> str:
         # Fall back to a basic response structure
         return json.dumps({"response": original_text.strip(), "actions": []})
 
-def get_ai_response(user_input, personality_name=None):
+def get_ai_response(user_input, personality_name=None, additional_context=None):
     """
     Gets a response from the OpenAI API using the new Responses API.
     
     Args:
         user_input (str): The user's input text
         personality_name (str, optional): Name of the personality to use. Defaults to None.
+        additional_context (str, optional): Additional context to include in the system prompt. Defaults to None.
     
     Returns:
         str: The AI's response as a JSON string
@@ -168,8 +169,14 @@ def get_ai_response(user_input, personality_name=None):
         # Prepare the conversation history as input messages
         messages = []
         
+        # Add additional context if provided
+        if additional_context:
+            messages.append({
+                "role": "system",
+                "content": additional_context
+            })
         # Add system message with Home Assistant context first for importance
-        if home_assistant_context:
+        elif home_assistant_context:
             messages.append({
                 "role": "system",
                 "content": home_assistant_context
