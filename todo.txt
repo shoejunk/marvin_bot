@@ -4,5 +4,6 @@
 - Add ability to pause the timer.
 - Crash can occur when the timer is finished - if 2 timers end at about the same time.
 - Feed the results of all Home Assistant actions back to the LLM and have it speak out a concise recap instead of the detailed results.
-- Move LLM choice to .env
-- Dockerize the app
+- Move LLM choice to .env.
+- Dockerize the app.
+- Attempt to integrate a more natural, interruptable voice API.

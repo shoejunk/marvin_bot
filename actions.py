@@ -4,7 +4,7 @@
 action_strings = [
     'play_song', 'play_playlist', 
     'pause_music', 'unpause_music', 'resume_music', 'volume_up', 'volume_down', 
-    'reboot', 'set_timer', 'start_timer', 'stop_timer', 'shut_down', 'stop_music',
+    'reboot', 'set_timer', 'start_timer', 'stop_timer', 'pause_timer', 'resume_timer', 'shut_down', 'stop_music',
     'read_file', 'write_file', 'list_files', 'delete_file', 
     'edit_file', 'append_to_file', 'create_directory', 
     'move_file', 'copy_file', 'search_files', 'get_time',

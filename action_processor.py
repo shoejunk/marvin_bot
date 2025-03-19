@@ -172,6 +172,12 @@ class ActionProcessor:
                 elif action_name == 'stop_timer':
                     await self.stop_timer()
                     
+                elif action_name == 'pause_timer':
+                    await self.pause_timer(params)
+                    
+                elif action_name == 'resume_timer':
+                    await self.resume_timer(params)
+                    
                 elif action_name == 'shut_down':
                     active_personality = get_active_personality()
                     await self.speak_text('Shutting down Marvin', personality_name=active_personality)
@@ -734,6 +740,114 @@ class ActionProcessor:
         logger.info('All timers stopped')
         await self.speak_text('All timers stopped.', personality_name=get_active_personality())
         
+    async def pause_timer(self, params):
+        """
+        Pause a timer or all timers.
+        
+        Args:
+            params: List of parameters for the action
+                   If empty, pause all timers
+                   If provided, the first parameter is the timer number to pause
+        """
+        active_personality = get_active_personality()
+        try:
+            # Check if we have active timers
+            logger.debug(f"Attempting to pause timer with params: {params}")
+            logger.debug(f"Current active timers: {self.display.timers}")
+            logger.debug(f"Current paused timers: {self.display.paused_timers}")
+            
+            if not self.display.timers:
+                await self.speak_text("No active timers to pause.", personality_name=active_personality)
+                return
+                
+            # If no specific timer is specified, pause all timers
+            if not params:
+                logger.debug("No specific timer specified, pausing all timers")
+                count = self.display.pause_all_timers()
+                if count == 1:
+                    await self.speak_text(f"Paused 1 timer.", personality_name=active_personality)
+                else:
+                    await self.speak_text(f"Paused {count} timers.", personality_name=active_personality)
+                logger.debug(f"After pausing all timers - Active: {self.display.timers}, Paused: {self.display.paused_timers}")
+                return
+                
+            # Try to parse the timer number
+            try:
+                timer_num = int(params[0])
+                timer_name = f"timer_{timer_num}"
+                logger.debug(f"Attempting to pause timer: {timer_name}")
+            except (ValueError, IndexError):
+                # If we can't parse the number, use the first timer
+                timer_name = next(iter(self.display.timers))
+                logger.debug(f"Could not parse timer number, using first timer: {timer_name}")
+                
+            # Pause the specific timer
+            if self.display.pause_timer(timer_name):
+                await self.speak_text(f"Timer paused.", personality_name=active_personality)
+                logger.debug(f"Successfully paused timer {timer_name}")
+                logger.debug(f"After pausing timer - Active: {self.display.timers}, Paused: {self.display.paused_timers}")
+            else:
+                await self.speak_text(f"Timer not found.", personality_name=active_personality)
+                logger.debug(f"Failed to pause timer {timer_name} - not found")
+                
+        except Exception as e:
+            logger.error(f"Error pausing timer: {e}", exc_info=True)
+            await self.speak_text("Error pausing timer.", personality_name=active_personality)
+            
+    async def resume_timer(self, params):
+        """
+        Resume a paused timer or all paused timers.
+        
+        Args:
+            params: List of parameters for the action
+                   If empty, resume all paused timers
+                   If provided, the first parameter is the timer number to resume
+        """
+        active_personality = get_active_personality()
+        try:
+            # Check if we have paused timers
+            logger.debug(f"Attempting to resume timer with params: {params}")
+            logger.debug(f"Current active timers: {self.display.timers}")
+            logger.debug(f"Current paused timers: {self.display.paused_timers}")
+            
+            if not self.display.paused_timers:
+                await self.speak_text("No paused timers to resume.", personality_name=active_personality)
+                return
+                
+            # If no specific timer is specified, resume all timers
+            if not params:
+                logger.debug("No specific timer specified, resuming all timers")
+                count = self.display.resume_all_timers()
+                if count == 1:
+                    await self.speak_text(f"Resumed 1 timer.", personality_name=active_personality)
+                else:
+                    await self.speak_text(f"Resumed {count} timers.", personality_name=active_personality)
+                logger.debug(f"After resuming all timers - Active: {self.display.timers}, Paused: {self.display.paused_timers}")
+                return
+                
+            # Try to parse the timer number
+            try:
+                timer_num = int(params[0])
+                timer_name = f"timer_{timer_num}"
+                logger.debug(f"Attempting to resume timer: {timer_name}")
+            except (ValueError, IndexError):
+                # If we can't parse the number, use the first paused timer
+                timer_name = next(iter(self.display.paused_timers))
+                logger.debug(f"Could not parse timer number, using first paused timer: {timer_name}")
+                
+            # Resume the specific timer
+            if self.display.resume_timer(timer_name):
+                await self.speak_text(f"Timer resumed.", personality_name=active_personality)
+                logger.debug(f"Successfully resumed timer {timer_name}")
+                logger.debug(f"After resuming timer - Active: {self.display.timers}, Paused: {self.display.paused_timers}")
+            else:
+                await self.speak_text(f"Paused timer not found.", personality_name=active_personality)
+                logger.debug(f"Failed to resume timer {timer_name} - not found")
+                
+        except Exception as e:
+            logger.error(f"Error resuming timer: {e}", exc_info=True)
+            await self.speak_text("Error resuming timer.", personality_name=active_personality)
+
     async def _handle_get_time(self):
         """Get the current time and speak it to the user."""
         active_personality = get_active_personality()

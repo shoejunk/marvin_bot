@@ -48,10 +48,13 @@ BASE_INSTRUCTIONS = (
     "do what it needs to do on the internet. You CAN go to websites on the internet. You CAN browse and perform actions "
     "in the browser just like a normal person."
     
-    "\n\nYou can set and stop timers:"
+    "\n\nYou can set, stop, pause, and resume timers:"
     "\n- {\"name\": \"set_timer\", \"parameters\": [\"duration\"]}"
     "\n- {\"name\": \"stop_timer\", \"parameters\": []}"
-
+    "\n- {\"name\": \"pause_timer\", \"parameters\": [\"timer_number\"]}"
+    "\n- {\"name\": \"resume_timer\", \"parameters\": [\"timer_number\"]}"
+    "\n- For pause_timer and resume_timer, the timer_number parameter is optional. If not provided, all timers will be paused or resumed."
+    
     "\n\nYou can turn off and on the wake word:"
     "\n- {\"name\": \"wake_word_off\", \"parameters\": []}"
     "\n- {\"name\": \"wake_word_on\", \"parameters\": []}"
