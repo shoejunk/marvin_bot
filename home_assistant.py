@@ -118,17 +118,21 @@ class HomeAssistantController:
         try:
             climate = self.client.get_domain("climate")
             
-            if mode == "heat":
-                climate.set_temperature(entity_id=entity_id, temperature=temperature, hvac_mode="heat")
-            elif mode == "cool":
-                climate.set_temperature(entity_id=entity_id, temperature=temperature, hvac_mode="cool")
-            elif mode == "heat_cool":
-                climate.set_temperature(entity_id=entity_id, temperature=temperature, hvac_mode="heat_cool")
+            # First set the HVAC mode
+            if mode in ["heat", "cool", "heat_cool", "off"]:
+                logger.info(f"Setting HVAC mode to {mode} for {entity_id}")
+                # Use set_hvac_mode method to explicitly set the mode first
+                climate.set_hvac_mode(entity_id=entity_id, hvac_mode=mode)
             else:
                 logger.error(f"Unsupported HVAC mode: {mode}")
                 return False
+            
+            # Then set the temperature (if mode is not 'off')
+            if mode != "off":
+                logger.info(f"Setting temperature to {temperature} for {entity_id}")
+                climate.set_temperature(entity_id=entity_id, temperature=temperature)
                 
-            logger.info(f"Set {entity_id} to {temperature} degrees in {mode} mode")
+            logger.info(f"Successfully set {entity_id} to {temperature} degrees in {mode} mode")
             return True
         except Exception as e:
             logger.error(f"Failed to set thermostat temperature: {e}")
