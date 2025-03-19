@@ -96,6 +96,8 @@ class HomeAssistantHandler:
         Returns:
             Dict[str, Any]: Result of the action
         """
+        logger.debug(f"Handling Home Assistant action: {action} with parameters: {parameters}")
+
         if not self.controller:
             return {"success": False, "message": "Home Assistant not configured"}
             
@@ -161,6 +163,7 @@ class HomeAssistantHandler:
         Returns:
             Dict[str, Any]: Result of the action
         """
+        logger.debug(f"Setting thermostat: {parameters}")
         entity_id = parameters.get('entity_id')
         temperature = parameters.get('temperature')
         mode = parameters.get('mode', 'heat')

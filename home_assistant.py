@@ -109,6 +109,8 @@ class HomeAssistantController:
         Returns:
             bool: True if successful, False otherwise
         """
+        logger.debug(f"Setting {entity_id} to {temperature} degrees in {mode} mode")
+        
         if not self.connected or not self.client:
             logger.error("Not connected to Home Assistant")
             return False
@@ -131,6 +133,21 @@ class HomeAssistantController:
         except Exception as e:
             logger.error(f"Failed to set thermostat temperature: {e}")
             return False
+    
+    def set_temperature(self, entity_id: str, temperature: float, mode: str = "heat") -> bool:
+        """
+        Set the temperature for a thermostat.
+        
+        Args:
+            entity_id: The entity ID of the thermostat (e.g., "climate.living_room")
+            temperature: The temperature to set
+            mode: The HVAC mode ("heat", "cool", "heat_cool", or "off")
+            
+        Returns:
+            bool: True if successful, False otherwise
+        """
+        # This is an alias for set_thermostat_temperature for compatibility
+        return self.set_thermostat_temperature(entity_id, temperature, mode)
     
     def set_hvac_mode(self, entity_id: str, mode: str) -> bool:
         """
