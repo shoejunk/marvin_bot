@@ -723,20 +723,19 @@ class ActionProcessor:
             'entity_id': entity_id,
         }
 
-        # If the second parameter is a number, it's temperature
-        # Otherwise, it's mode
-        if isinstance(params[1], (int, float)):
-            params_dict['temperature'] = params[1]
-        else:
+        # Try to convert the second parameter to a number. On failure, it's mode
+        try:
+            params_dict['temperature'] = float(params[1])
+        except ValueError:
             params_dict['mode'] = params[1]
         
         # Add mode if provided
         if len(params) > 2:
             # If the third parameter is a number, it's temperature
             # Otherwise, it's mode
-            if isinstance(params[2], (int, float)):
-                params_dict['temperature'] = params[2]
-            else:
+            try:
+                params_dict['temperature'] = float(params[2])
+            except ValueError:
                 params_dict['mode'] = params[2]
         
         try:
