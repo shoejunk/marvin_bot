@@ -19,6 +19,7 @@ from personalities import get_personality
 from settings_manager import get_active_personality
 from home_assistant_handler import HomeAssistantHandler
 from settings_manager import get_active_personality
+from windows_apps import get_app_executable, list_available_apps
 
 # Get a logger for this module
 logger = get_logger(__name__)
@@ -254,6 +255,13 @@ class ActionProcessor:
                 # Browser use action
                 elif action_name == 'browse_internet':
                     await self._handle_browse_internet(params)
+                    
+                # Open Windows application action
+                elif action_name == 'open_app':
+                    await self._handle_open_app(params)
+                    
+                elif action_name == 'list_apps':
+                    await self._handle_list_apps()
                     
                 elif action_name == 'change_personality':
                     # Already handled - do nothing
@@ -537,6 +545,145 @@ class ActionProcessor:
             await self.speak_text("No search query specified for browsing the internet.", personality_name=active_personality)
             self.display.add_conversation("No search query specified for browsing the internet.", speaker='assistant')
             self.update_history("No search query specified for browsing the internet.", "")
+
+    async def _handle_open_app(self, params):
+        """Handle opening a Windows application.
+        
+        Args:
+            params: List containing the application name to open
+        """
+        active_personality = get_active_personality()
+        
+        if not params or len(params) < 1:
+            await self.speak_text("I need an application name to open.", personality_name=active_personality)
+            return
+            
+        app_name = params[0]
+        logger.info(f"Attempting to open application: {app_name}")
+        
+        try:
+            # Get the executable name from the mapping
+            executable = get_app_executable(app_name)
+            
+            if not executable:
+                error_message = f"I don't know how to open '{app_name}'. Please try a different application."
+                logger.warning(error_message)
+                self.display.add_conversation(f"❌ {error_message}", speaker='assistant')
+                await self.speak_text(error_message, personality_name=active_personality)
+                return
+                
+            logger.info(f"Mapped '{app_name}' to executable: '{executable}'")
+            
+            # Use subprocess to run the application
+            if ":" in executable and executable.startswith("ms-"):
+                # Handle Windows 10/11 URI protocol for modern apps
+                subprocess.Popen(f'start {executable}', shell=True)
+            else:
+                # Regular executable
+                subprocess.Popen(f'start "" "{executable}"', shell=True)
+            
+            # Add to conversation display
+            self.display.add_conversation(f"Opening {app_name}", speaker='assistant')
+            
+            # Speak confirmation if needed
+            await self.speak_text(f"Opening {app_name}", personality_name=active_personality)
+            
+            logger.info(f"Successfully opened application: {app_name} ({executable})")
+        except Exception as e:
+            error_message = f"Error opening application {app_name}: {e}"
+            logger.error(error_message)
+            self.display.add_conversation(f"❌ {error_message}", speaker='assistant')
+            await self.speak_text(f"I encountered an error opening {app_name}.", personality_name=active_personality)
+
+    async def _handle_list_apps(self):
+        """Handle listing all available Windows applications that can be opened."""
+        active_personality = get_active_personality()
+        
+        try:
+            # Get the list of available apps
+            available_apps = list_available_apps()
+            
+            # Get custom mappings from environment variables
+            custom_apps = [key.lower() for key in os.environ.keys() if key.startswith('APP_MAPPING_')]
+            custom_apps = [app[len('APP_MAPPING_'):] for app in custom_apps]
+            
+            # Format the list for display and speech
+            if available_apps:
+                # Group apps by category for better organization
+                categories = {
+                    "System Tools": ["calculator", "notepad", "paint", "file explorer", "command prompt", "powershell", 
+                                    "task manager", "control panel", "settings", "word pad"],
+                    "Browsers": ["chrome", "firefox", "edge", "internet explorer", "opera", "brave"],
+                    "Office": ["excel", "word", "powerpoint", "outlook"],
+                    "Media": ["spotify", "vlc", "vlc media player", "winamp", "itunes"],
+                    "Communication": ["discord", "slack", "zoom", "teams", "skype"],
+                    "Development": ["visual studio code", "visual studio", "code", "vscode"]
+                }
+                
+                # Create a formatted message
+                message = "Here are the applications you can open:\n\n"
+                
+                # Add custom apps section first if any exist
+                if custom_apps:
+                    message += "Custom Applications (from .env):\n"
+                    for app in sorted(custom_apps):
+                        message += f"- {app}\n"
+                    message += "\n"
+                
+                # Add categorized apps
+                for category, app_list in categories.items():
+                    category_apps = []
+                    for app in app_list:
+                        if app in available_apps:
+                            # Mark custom apps with an asterisk
+                            if app in custom_apps:
+                                category_apps.append(f"{app}*")
+                            else:
+                                category_apps.append(app)
+                            # Remove from the main list to avoid duplication
+                            if app in available_apps:
+                                available_apps.remove(app)
+                    
+                    if category_apps:
+                        message += f"{category}: {', '.join(category_apps)}\n"
+                
+                # Add remaining apps
+                if available_apps:
+                    remaining_apps = []
+                    for app in sorted(available_apps):
+                        # Mark custom apps with an asterisk
+                        if app in custom_apps:
+                            remaining_apps.append(f"{app}*")
+                        else:
+                            remaining_apps.append(app)
+                    
+                    message += f"\nOther Applications: {', '.join(remaining_apps)}\n"
+                
+                # Add note about custom apps
+                if custom_apps:
+                    message += "\n* Custom application paths defined in .env file\n"
+                
+                message += "\nYou can add custom applications by adding APP_MAPPING_<name>=<executable_path> to your .env file."
+                message += "\nYou can also try to open applications not in this list by name."
+                
+                # Add to conversation display
+                self.display.add_conversation(message, speaker='assistant')
+                
+                # Speak a shorter version
+                speech_message = "I can open many applications including calculator, notepad, chrome, firefox, excel, word, and more. Check the display for the full list."
+                if custom_apps:
+                    speech_message += " I also found custom application mappings in your .env file."
+                await self.speak_text(speech_message, personality_name=active_personality)
+                
+                logger.info("Successfully listed available applications")
+            else:
+                await self.speak_text("I don't have any applications in my list that I can open.", personality_name=active_personality)
+                
+        except Exception as e:
+            error_message = f"Error listing available applications: {e}"
+            logger.error(error_message)
+            self.display.add_conversation(f"❌ {error_message}", speaker='assistant')
+            await self.speak_text("I encountered an error listing available applications.", personality_name=active_personality)
 
     # Home Assistant handlers
     async def _handle_list_climate_devices(self):

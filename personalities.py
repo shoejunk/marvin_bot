@@ -111,7 +111,24 @@ BASE_INSTRUCTIONS = (
     
     "\n\nYou can write code:"
     "\n- {\"name\": \"write_code\", \"parameters\": [\"filename\", \"code_content\"]}"
-
+    
+    "\n\nYou can open Windows applications:"
+    "\n- {\"name\": \"open_app\", \"parameters\": [\"app_name\"]} - Open a Windows application"
+    "\n  * Example: When user asks to open Notepad, use {\"name\": \"open_app\", \"parameters\": [\"notepad\"]}"
+    "\n  * Example: When user asks to open Chrome, use {\"name\": \"open_app\", \"parameters\": [\"chrome\"]}"
+    "\n  * Example: When user asks to open Calculator, use {\"name\": \"open_app\", \"parameters\": [\"calculator\"]}"
+    "\n  * Supported applications include: calculator, notepad, paint, file explorer, command prompt, powershell,"
+    "\n    task manager, control panel, settings, word pad, chrome, firefox, edge, spotify, discord, zoom, teams,"
+    "\n    visual studio code, excel, word, powerpoint, outlook, and many more."
+    "\n  * Custom app mappings can be defined in the .env file using APP_MAPPING_<name>=<executable_path> format."
+    "\n  * You can also try to open applications not in the predefined list by name or full path."
+    "\n- {\"name\": \"list_apps\", \"parameters\": []} - List all available applications that can be opened"
+    "\n  * Example: When user asks what apps can be opened, use {\"name\": \"list_apps\", \"parameters\": []}"
+    "\n  * Example: When user asks to show available applications, use {\"name\": \"list_apps\", \"parameters\": []}"
+    
+    "\n\nYou can reboot yourself:"
+    "\n- {\"name\": \"reboot\", \"parameters\": []}"
+    
     "\n\nWhen responding, remember to:"
     "\n1. Keep your text responses brief and conversational"
     "\n2. Include any actions you need to perform in the actions array"
@@ -197,21 +214,44 @@ def get_personality(personality_name: str = None) -> Personality:
     """
     if not personality_name:
         personality_name = DEFAULT_PERSONALITY
-        
+    
     personality_name = personality_name.lower()
     
-    if personality_name not in PERSONALITIES:
+    if personality_name in PERSONALITIES:
+        return PERSONALITIES[personality_name]
+    else:
         logger.warning(f"Personality '{personality_name}' not found, using default '{DEFAULT_PERSONALITY}'")
-        personality_name = DEFAULT_PERSONALITY
-        
-    return PERSONALITIES[personality_name]
+        return PERSONALITIES[DEFAULT_PERSONALITY]
 
-def list_personalities() -> Dict[str, Any]:
+def get_active_personality():
     """
-    Get a dictionary of available personalities with their descriptions.
+    Get the currently active personality from the settings file.
     
     Returns:
-        Dict[str, Any]: Dictionary of personality names and descriptions
+        str: The name of the active personality
     """
-    return {name: {"name": p.name, "description": p.description} 
-            for name, p in PERSONALITIES.items()}
+    try:
+        import json
+        import os
+        
+        settings_file = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'settings.json')
+        
+        if os.path.exists(settings_file):
+            with open(settings_file, 'r') as f:
+                settings = json.load(f)
+                active_personality = settings.get('active_personality', DEFAULT_PERSONALITY)
+                return active_personality
+        
+        return DEFAULT_PERSONALITY
+    except Exception as e:
+        logger.error(f"Error getting active personality: {e}")
+        return DEFAULT_PERSONALITY
+
+def get_all_personalities():
+    """
+    Get a list of all available personalities.
+    
+    Returns:
+        Dict[str, Dict[str, Any]]: Dictionary of personality information
+    """
+    return {name: {"name": p.name, "description": p.description} for name, p in PERSONALITIES.items()}

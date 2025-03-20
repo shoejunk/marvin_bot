@@ -26,7 +26,7 @@ from settings_manager import load_settings, update_setting, get_active_personali
 from voice_processor import VoiceProcessor
 from action_processor import ActionProcessor
 from assistant_manager import AssistantManager
-from personalities import get_personality, list_personalities
+from personalities import get_personality, get_all_personalities
 from waiting_sound import play_waiting_sound_once
 from context_store import update_home_assistant_devices, update_home_assistant_services, update_home_assistant_climate_devices
 from actions import mute_reply_actions

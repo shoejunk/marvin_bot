@@ -11,7 +11,7 @@ action_strings = [
     'dictate', 'write_code', 'browse_internet', 'wake_word_off', 'wake_word_on',
     'play_music', 'next_track', 'previous_track', 'adjust_volume', 'change_personality',
     'list_climate_devices', 'get_smart_devices', 'get_weather', 'control_entity',
-    'get_thermostat', 'set_thermostat'
+    'get_thermostat', 'set_thermostat', 'open_app', 'list_apps'
 ]
 
 # List of actions that should be muted in the reply
@@ -32,5 +32,7 @@ mute_reply_actions = [
     "browse_internet",
     "wake_word_off",
     "wake_word_on",
-    "change_personality"
+    "change_personality",
+    "open_app",
+    "list_apps"
 ]
