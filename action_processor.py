@@ -710,24 +710,34 @@ class ActionProcessor:
             await self.speak_text("Home Assistant is not configured.")
             return {"success": False, "message": "Home Assistant is not configured."}
         
-        # Need at least entity_id and temperature
+        # Need at least entity_id and temperature or entity_id and mode
         if not params or len(params) < 2:
-            error_message = "Not enough parameters for set_thermostat action. Need at least entity_id and temperature."
+            error_message = "Not enough parameters for set_thermostat action. Need at least entity_id and temperature or entity_id and mode."
             await self.speak_text(error_message)
             return {"success": False, "message": error_message}
         
         entity_id = params[0]
-        temperature = params[1]
         
         # Create parameters dictionary
         params_dict = {
             'entity_id': entity_id,
-            'temperature': temperature
         }
+
+        # If the second parameter is a number, it's temperature
+        # Otherwise, it's mode
+        if isinstance(params[1], (int, float)):
+            params_dict['temperature'] = params[1]
+        else:
+            params_dict['mode'] = params[1]
         
         # Add mode if provided
         if len(params) > 2:
-            params_dict['mode'] = params[2]
+            # If the third parameter is a number, it's temperature
+            # Otherwise, it's mode
+            if isinstance(params[2], (int, float)):
+                params_dict['temperature'] = params[2]
+            else:
+                params_dict['mode'] = params[2]
         
         try:
             # Call the Home Assistant handler and return the result

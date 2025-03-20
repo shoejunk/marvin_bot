@@ -158,7 +158,7 @@ class HomeAssistantHandler:
         Handle setting thermostat temperature.
         
         Args:
-            parameters: Must contain 'entity_id', 'temperature', and optionally 'mode'
+            parameters: Must contain 'entity_id'. 'temperature' and 'mode' are optional
             
         Returns:
             Dict[str, Any]: Result of the action
@@ -166,10 +166,10 @@ class HomeAssistantHandler:
         logger.debug(f"Setting thermostat: {parameters}")
         entity_id = parameters.get('entity_id')
         temperature = parameters.get('temperature')
-        mode = parameters.get('mode', 'heat')
+        mode = parameters.get('mode')
         
-        if not entity_id or not temperature:
-            message = "Missing required parameters: entity_id or temperature"
+        if not entity_id or (not temperature and not mode):
+            message = "Missing required parameters: entity_id or one of temperature or mode"
             if self.speak_function:
                 active_personality = get_active_personality()
                 await self.speak_function(message, personality_name=active_personality)
@@ -187,7 +187,14 @@ class HomeAssistantHandler:
                 return {"success": False, "message": message}
         
         # Set the thermostat
-        success = self.controller.set_temperature(entity_id, temperature, mode)
+        if temperature is not None and mode is not None:
+            success = self.controller.set_thermostat_temperature_and_mode(entity_id, temperature, mode)
+        elif temperature is not None:
+            success = self.controller.set_thermostat_temperature(entity_id, temperature)
+        elif mode is not None:
+            success = self.controller.set_thermostat_mode(entity_id, mode)
+        else:
+            success = False 
         
         if success:
             message = f"Set {entity_id} to {temperature}°F in {mode} mode"
