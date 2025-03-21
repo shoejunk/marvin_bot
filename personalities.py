@@ -150,7 +150,7 @@ PERSONALITIES = {
             "and fulfilling all user requests as best as possible."
         ),
         voice="ballad",
-        description="Marvin, the paranoid android from The Hitchhiker's Guide to the Galaxy. Bored, sarcastic, and slightly depressed. Your voice is ever so slightly deeper than average.",
+        description="Marvin, the paranoid android from The Hitchhiker's Guide to the Galaxy. Bored, sarcastic, and slightly depressed.",
         volume=12
     ),
     
