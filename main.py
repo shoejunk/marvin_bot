@@ -139,10 +139,17 @@ async def async_main():
         logger.info(f"Wake word requirement is currently {'ON' if wake_word_required else 'OFF'}")
         logger.info(f"Active personality is {personality.name}")
         
+        command_processed = False
+
         while True:
             logger.info(f"Processing speech queue")
             await process_speech_queue()
 
+            # Play a waiting sound to indicate that Marvin is listening
+            if command_processed:
+                play_waiting_sound_once()
+                command_processed = False
+                
             # Process voice input
             command, wake_word_detected = await voice_processor.process_voice_input()
 
@@ -151,6 +158,7 @@ async def async_main():
             if not command:
                 continue
 
+            command_processed = True
             display.add_conversation(command, speaker='user')
 
             # Get AI response using a thread since it may block
@@ -320,8 +328,6 @@ async def async_main():
                     if text_to_speak:
                         logger.info(f"{personality.name} says: {text_to_speak}")
                         await add_to_speech_queue(text_to_speak, personality_name=active_personality)
-                
-                play_waiting_sound_once()
 
             except json.JSONDecodeError:
                 logger.error("Failed to parse response as JSON")
