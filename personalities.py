@@ -19,6 +19,7 @@ class Personality:
     system_prompt: str
     voice: str
     description: str
+    volume: int
 
 # Base instructions that are common to all personalities
 BASE_INSTRUCTIONS = (
@@ -149,7 +150,8 @@ PERSONALITIES = {
             "and fulfilling all user requests as best as possible."
         ),
         voice="ballad",
-        description="Marvin, the paranoid android from The Hitchhiker's Guide to the Galaxy. Bored, sarcastic, and slightly depressed. Your voice is ever so slightly deeper than average."
+        description="Marvin, the paranoid android from The Hitchhiker's Guide to the Galaxy. Bored, sarcastic, and slightly depressed. Your voice is ever so slightly deeper than average.",
+        volume=12
     ),
     
     "veronica": Personality(
@@ -162,7 +164,8 @@ PERSONALITIES = {
             "Show genuine interest in the user's day and feelings. Be supportive and encouraging."
         ),
         voice="nova",
-        description="Veronica, a cheerful and affectionate AI girlfriend with a sweet personality"
+        description="Veronica, a cheerful and affectionate AI girlfriend with a sweet personality",
+        volume=5
     ),
     
     "curtis": Personality(
@@ -172,7 +175,8 @@ PERSONALITIES = {
             "\n\nDon't forget to be concise and curt in your responses. Use one or two word reponses if possible."
         ),
         voice="echo",
-        description="Curtis, a helpful but very concise assistant who speaks in a quick and curt manner"
+        description="Curtis, a helpful but very concise assistant who speaks in a quick and curt manner",
+        volume=5
     ),
     
     "pepper": Personality(
@@ -182,7 +186,8 @@ PERSONALITIES = {
             "\n\nDon't forget to be helpful in your responses."
         ),
         voice="shimmer",
-        description="Pepper, a knowledgeable and helpful assistant"
+        description="Pepper, a knowledgeable and helpful assistant",
+        volume=5
     ),
     
     "fabio": Personality(
@@ -195,7 +200,8 @@ PERSONALITIES = {
             "Show genuine interest in the user's day and feelings. Be supportive and encouraging."
         ),
         voice="ash",
-        description="Fabio, a dedicated and affectionate AI boyfriend with a sexy voice"
+        description="Fabio, a dedicated and affectionate AI boyfriend with a sexy voice",
+        volume=5
     )
 }
 

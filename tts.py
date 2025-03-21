@@ -24,7 +24,7 @@ client = OpenAI()
 default_voice = "alloy"  # Default OpenAI voice
 fallback_voice = "echo"  # Fallback OpenAI voice
 
-async def speak_text(text: str, voice=None, personality_name=None, gain_db=5, max_retries=2):
+async def speak_text(text: str, voice=None, personality_name=None, max_retries=2):
     """
     Convert text to speech using OpenAI's TTS API and play it with volume adjustment.
     Includes error handling and retry logic.
@@ -33,7 +33,6 @@ async def speak_text(text: str, voice=None, personality_name=None, gain_db=5, ma
         text: The text to convert to speech
         voice: The voice to use (overrides personality voice if provided)
         personality_name: Name of the personality to use for voice selection
-        gain_db: Volume adjustment in decibels
         max_retries: Maximum number of retry attempts for TTS service
     """
     # Determine which voice to use
@@ -99,14 +98,12 @@ async def speak_text(text: str, voice=None, personality_name=None, gain_db=5, ma
             # Load the audio file
             audio = AudioSegment.from_file(tts_file, format="mp3")
             
-            # Increase volume by gain_db decibels
-            louder_audio = audio + gain_db
+            # Increase volume by volume decibels
+            louder_audio = audio + personality.volume
 
             # Play the louder audio
             play(louder_audio)
             
-            # Small delay to ensure file is not in use
-            time.sleep(0.1)
         except Exception as e:
             logger.error(f"Error playing audio: {e}")
             # Still show the text as fallback
