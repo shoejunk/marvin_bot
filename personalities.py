@@ -139,7 +139,7 @@ BASE_INSTRUCTIONS = (
     "\n6. Use Home Assistant actions for any smart home or weather related queries"
 )
 
-# Define available personalities
+# Define available personalities - can't decide between ballad or onyx
 PERSONALITIES = {
     "marvin": Personality(
         name="Marvin",
@@ -150,7 +150,7 @@ PERSONALITIES = {
             "and fulfilling all user requests as best as possible."
         ),
         voice="ballad",
-        description="Marvin, the paranoid android from The Hitchhiker's Guide to the Galaxy. Bored, sarcastic, and slightly depressed.",
+        description="Marvin, slightly cynical and depressed man with a brain the size of a planet.",
         volume=12
     ),
     
