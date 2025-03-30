@@ -853,6 +853,11 @@ class ActionProcessor:
         Returns:
             Dict: Result of the action
         """
+
+        # Log each param
+        for param in params:
+            logger.debug(f"_handle_set_thermostat Param: {param}")
+        
         if not self.home_assistant:
             await self.speak_text("Home Assistant is not configured.")
             return {"success": False, "message": "Home Assistant is not configured."}
